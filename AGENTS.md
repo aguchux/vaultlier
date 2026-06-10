@@ -704,6 +704,20 @@ Security-sensitive changes also require:
 
 ---
 
+## Agent Commit Policy
+
+After completing any code, documentation, configuration, or workflow operation, agents must commit the completed job before handing off, unless the user explicitly says not to commit.
+
+Commit rules:
+
+- Run the relevant quality gates before committing.
+- Commit only the agent's own changes for the completed job.
+- Do not include unrelated user changes, generated noise, local secrets, credential caches, or build outputs.
+- Use a concise commit message that describes the completed job.
+- If verification cannot run or fails, do not commit; report the blocker and the current state.
+
+---
+
 ## Final Agent Reminder
 
 Vaultlier exists to remove unsafe `.env` habits without making developers slower.
