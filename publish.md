@@ -33,7 +33,9 @@ Do not use a normal publish token for CI. npm will reject it with `EOTP` when
 the package/account requires a one-time password.
 
 ---
-
+npm logout
+npm login --registry=https://registry.npmjs.org/
+npm whoami
 ## Enable Trusted Publishing
 
 After `vaultlier` exists on npm:
