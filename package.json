@@ -4,12 +4,16 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
-    "lint": "turbo run lint",
+    "lint": "turbo run lint && npm run lint:root",
+    "lint:global": "eslint . --max-warnings 0",
+    "lint:root": "eslint eslint.config.mjs --max-warnings 0",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
     "test": "turbo run test"
   },
   "devDependencies": {
+    "@repo/eslint-config": "*",
+    "eslint": "^9.39.1",
     "prettier": "^3.7.4",
     "turbo": "^2.9.17",
     "typescript": "5.9.2"
