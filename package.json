@@ -9,6 +9,10 @@
     "lint:root": "eslint eslint.config.mjs --max-warnings 0",
     "format": "prettier --write \"**/*.{js,cjs,mjs,ts,tsx,json,jsonc,css,md,mdx,yml,yaml}\"",
     "format:check": "prettier --check \"**/*.{js,cjs,mjs,ts,tsx,json,jsonc,css,md,mdx,yml,yaml}\"",
+    "version:vaultlier": "npm version --workspace=vaultlier --no-git-tag-version",
+    "version:patch": "npm version patch --workspace=vaultlier --no-git-tag-version",
+    "version:minor": "npm version minor --workspace=vaultlier --no-git-tag-version",
+    "version:major": "npm version major --workspace=vaultlier --no-git-tag-version",
     "check-types": "turbo run check-types",
     "test": "turbo run test"
   },

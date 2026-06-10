@@ -33,9 +33,7 @@ Do not use a normal publish token for CI. npm will reject it with `EOTP` when
 the package/account requires a one-time password.
 
 ---
-npm logout
-npm login --registry=https://registry.npmjs.org/
-npm whoami
+
 ## Enable Trusted Publishing
 
 After `vaultlier` exists on npm:
@@ -54,21 +52,35 @@ After `vaultlier` exists on npm:
 The workflow already has `id-token: write`, which npm requires for OIDC.
 
 ---
-
+git add .github/workflows/release.yml publish.md package.json
+git commit -m "Use trusted publishing for npm releases"
+git push
 ## Releasing a version
 
 The workflow triggers when a GitHub Release is published. The tag should match
 the package version (`v0.1.0` -> `0.1.0`).
 
 ```powershell
-# 1. Make sure packages/vaultlier/package.json "version" is correct, commit it.
-# 2. Cut the release:
-gh release create v0.1.0 --title "v0.1.0" --notes "Initial release of vaultlier"
+# 1. Bump packages/vaultlier/package.json and package-lock.json.
+npm run version:patch
 
-# 3. Watch the workflow run:
+# For other bump types:
+# npm run version:minor
+# npm run version:major
+# npm run version:vaultlier -- 0.2.3
+
+# 2. Commit the version bump.
+git add packages/vaultlier/package.json package-lock.json
+git commit -m "Release vaultlier 0.1.1"
+git push
+
+# 3. Cut the release with a tag matching the new package version:
+gh release create v0.1.1 --title "v0.1.1" --notes "Release vaultlier 0.1.1"
+
+# 4. Watch the workflow run:
 gh run watch
 
-# 4. Verify once it finishes:
+# 5. Verify once it finishes:
 npm view vaultlier
 ```
 

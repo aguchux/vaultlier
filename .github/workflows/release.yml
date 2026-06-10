@@ -33,5 +33,20 @@ jobs:
       - name: Verify (lint, types, tests, build)
         run: npx turbo run lint check-types test build --filter=vaultlier
 
+      - name: Check npm version
+        id: npm-version
+        shell: bash
+        run: |
+          PACKAGE_NAME="$(node -p "require('./packages/vaultlier/package.json').name")"
+          PACKAGE_VERSION="$(node -p "require('./packages/vaultlier/package.json').version")"
+
+          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} is already published; skipping npm publish."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish to npm with trusted publishing
+        if: steps.npm-version.outputs.exists != 'true'
         run: npm publish --workspace=vaultlier --access public
