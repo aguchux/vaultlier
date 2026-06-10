@@ -17,11 +17,11 @@
   "homepage": "https://vaultlier.com",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/vaultlier/vaultlierjs.git",
+    "url": "git+https://github.com/aguchux/vaultlier.git",
     "directory": "packages/vaultlier"
   },
   "bugs": {
-    "url": "https://github.com/vaultlier/vaultlierjs/issues"
+    "url": "https://github.com/aguchux/vaultlier/issues"
   },
   "sideEffects": false,
   "exports": {
