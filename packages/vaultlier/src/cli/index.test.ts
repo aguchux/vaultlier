@@ -148,6 +148,116 @@ describe("run", () => {
     expect(stderr.read()).toContain("invalid API key format");
   });
 
+  it("init does not prompt for install when vaultlier is already a dependency", async () => {
+    const cwd = await makeTempDir();
+    let installCalls = 0;
+    await writeFile(
+      join(cwd, "package.json"),
+      JSON.stringify({ dependencies: { vaultlier: "^0.1.0" } }),
+      "utf8",
+    );
+
+    const code = await run(
+      ["init", "--project-id=prj_checkout_api", "--api-key=vlt_test_12345678"],
+      {
+        cwd,
+        stdout: capture().stream,
+        installer: async () => {
+          installCalls += 1;
+          return 0;
+        },
+      },
+    );
+
+    expect(code).toBe(ExitCode.Success);
+    expect(installCalls).toBe(0);
+  });
+
+  it("init can install vaultlier before writing config", async () => {
+    const cwd = await makeTempDir();
+    const stdout = capture();
+    const calls: Array<{ command: string; args: string[] }> = [];
+
+    const code = await run(
+      [
+        "init",
+        "--project-id=prj_checkout_api",
+        "--api-key=vlt_test_12345678",
+        "--install",
+      ],
+      {
+        cwd,
+        stdout: stdout.stream,
+        installer: async ({ command, args }) => {
+          calls.push({ command, args });
+          return 0;
+        },
+      },
+    );
+
+    expect(code).toBe(ExitCode.Success);
+    expect(calls).toEqual([{ command: "npm", args: ["install", "vaultlier"] }]);
+    expect(stdout.read()).toContain(
+      "installing dependency - npm install vaultlier",
+    );
+    await expect(
+      readFile(join(cwd, "vaultlier.json"), "utf8"),
+    ).resolves.toContain("prj_checkout_api");
+  });
+
+  it("init can skip dependency install explicitly", async () => {
+    const cwd = await makeTempDir();
+    const stdout = capture();
+    let installCalls = 0;
+
+    const code = await run(
+      [
+        "init",
+        "--project-id=prj_checkout_api",
+        "--api-key=vlt_test_12345678",
+        "--no-install",
+      ],
+      {
+        cwd,
+        stdout: stdout.stream,
+        installer: async () => {
+          installCalls += 1;
+          return 0;
+        },
+      },
+    );
+
+    expect(code).toBe(ExitCode.Success);
+    expect(installCalls).toBe(0);
+    expect(stdout.read()).toContain("skipped dependency install");
+  });
+
+  it("init stops before writing config when dependency install fails", async () => {
+    const cwd = await makeTempDir();
+    const stderr = capture();
+
+    const code = await run(
+      [
+        "init",
+        "--project-id=prj_checkout_api",
+        "--api-key=vlt_test_12345678",
+        "--install",
+      ],
+      {
+        cwd,
+        stdout: capture().stream,
+        stderr: stderr.stream,
+        installer: async () => 1,
+      },
+    );
+
+    expect(code).toBe(ExitCode.GenericError);
+    expect(stderr.read()).toContain("dependency install failed");
+    await expect(
+      readFile(join(cwd, "vaultlier.json"), "utf8"),
+    ).rejects.toThrow();
+  });
+
   it("pull regenerates the typed client from local metadata", async () => {
     const cwd = await makeTempDir();
     await writeFile(

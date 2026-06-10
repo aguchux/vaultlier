@@ -6,6 +6,7 @@
  * All commands return a numeric exit code (see ExitCode).
  */
 
+import { spawn } from "node:child_process";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { stdin as processStdin, stdout as processStdout } from "node:process";
@@ -36,6 +37,7 @@ export interface RunOptions {
   stdin?: NodeJS.ReadableStream;
   stdout?: Pick<NodeJS.WritableStream, "write">;
   stderr?: Pick<NodeJS.WritableStream, "write">;
+  installer?: Installer;
 }
 
 interface CliContext {
@@ -44,12 +46,24 @@ interface CliContext {
   stdin: NodeJS.ReadableStream;
   stdout: Pick<NodeJS.WritableStream, "write">;
   stderr: Pick<NodeJS.WritableStream, "write">;
+  installer: Installer;
 }
 
 interface CredentialCache {
   projectId: string;
   apiKey: string;
 }
+
+interface InstallCommand {
+  command: string;
+  args: string[];
+}
+
+type Installer = (params: {
+  cwd: string;
+  command: string;
+  args: string[];
+}) => Promise<number>;
 
 const VALUE_FLAGS = new Set([
   "api-key",
@@ -113,6 +127,8 @@ Options:
   --api-key=<key>      API key used by init; cached locally, never in generated files
   --env=<name|all>     Target environment
   --environments=a,b   Initial environment list for init
+  --install            Install vaultlier dependency without prompting
+  --no-install         Skip dependency install prompt
   --force              Allow init to overwrite existing config metadata
   --help               Show this help
 `;
@@ -129,6 +145,7 @@ export async function run(
     stdin: options.stdin ?? processStdin,
     stdout: options.stdout ?? process.stdout,
     stderr: options.stderr ?? process.stderr,
+    installer: options.installer ?? installPackage,
   };
 
   if (!command || flags.help) {
@@ -196,6 +213,9 @@ async function initCommand(
     ctx.stderr.write("rerun with --force to overwrite generated metadata\n");
     return ExitCode.GenericError;
   }
+
+  const installResult = await ensureVaultlierDependency(flags, ctx);
+  if (installResult !== ExitCode.Success) return installResult;
 
   const configPath = join(ctx.cwd, GENERATED_FILES.config);
   const environments = parseListFlag(flags.environments) ?? [
@@ -273,6 +293,70 @@ async function portalCommand(
     `vaultlier ${command}: portal API sync is not available in this build yet\n`,
   );
   return ExitCode.GenericError;
+}
+
+async function ensureVaultlierDependency(
+  flags: Record<string, string | boolean>,
+  ctx: CliContext,
+): Promise<ExitCode> {
+  if (await hasVaultlierDependency(ctx.cwd)) {
+    return ExitCode.Success;
+  }
+
+  if (flags["no-install"] === true) {
+    ctx.stdout.write(
+      "skipped dependency install - run npm install vaultlier\n",
+    );
+    return ExitCode.Success;
+  }
+
+  let shouldInstall = flags.install === true;
+  if (!shouldInstall) {
+    shouldInstall = await confirm({
+      prompt:
+        "Install vaultlier in this project before initializing config? [Y/n] ",
+      defaultValue: true,
+      ctx,
+    });
+  }
+
+  if (!shouldInstall) {
+    ctx.stdout.write(
+      "skipped dependency install - run npm install vaultlier\n",
+    );
+    return ExitCode.Success;
+  }
+
+  const { command, args } = await detectInstallCommand(ctx.cwd);
+  ctx.stdout.write(`installing dependency - ${command} ${args.join(" ")}\n`);
+  const code = await ctx.installer({ cwd: ctx.cwd, command, args });
+  if (code !== 0) {
+    ctx.stderr.write(`vaultlier init: dependency install failed (${code})\n`);
+    return ExitCode.GenericError;
+  }
+  return ExitCode.Success;
+}
+
+async function hasVaultlierDependency(cwd: string): Promise<boolean> {
+  try {
+    const pkg = JSON.parse(
+      await readFile(join(cwd, "package.json"), "utf8"),
+    ) as Partial<{
+      dependencies: Record<string, string>;
+      devDependencies: Record<string, string>;
+      peerDependencies: Record<string, string>;
+      optionalDependencies: Record<string, string>;
+    }>;
+
+    return [
+      pkg.dependencies,
+      pkg.devDependencies,
+      pkg.peerDependencies,
+      pkg.optionalDependencies,
+    ].some((dependencies) => dependencies?.vaultlier !== undefined);
+  } catch {
+    return false;
+  }
 }
 
 async function readLocalConfig(
@@ -359,6 +443,22 @@ async function pathExists(path: string): Promise<boolean> {
   }
 }
 
+async function detectInstallCommand(cwd: string): Promise<InstallCommand> {
+  if (await pathExists(join(cwd, "bun.lockb"))) {
+    return { command: "bun", args: ["add", "vaultlier"] };
+  }
+  if (await pathExists(join(cwd, "bun.lock"))) {
+    return { command: "bun", args: ["add", "vaultlier"] };
+  }
+  if (await pathExists(join(cwd, "pnpm-lock.yaml"))) {
+    return { command: "pnpm", args: ["add", "vaultlier"] };
+  }
+  if (await pathExists(join(cwd, "yarn.lock"))) {
+    return { command: "yarn", args: ["add", "vaultlier"] };
+  }
+  return { command: "npm", args: ["install", "vaultlier"] };
+}
+
 async function findConfigPath(
   cwd: string,
 ): Promise<{ name: (typeof CONFIG_FILES)[number]; path: string } | undefined> {
@@ -410,4 +510,47 @@ async function resolveTextInput(params: {
   } finally {
     rl.close();
   }
+}
+
+async function confirm(params: {
+  prompt: string;
+  defaultValue: boolean;
+  ctx: CliContext;
+}): Promise<boolean> {
+  const stdin = params.ctx.stdin as NodeJS.ReadableStream & {
+    isTTY?: boolean;
+  };
+  if (!stdin.isTTY) return false;
+
+  const rl = createInterface({
+    input: stdin,
+    output: processStdout,
+  });
+  try {
+    const answer = (await rl.question(params.prompt)).trim().toLowerCase();
+    if (!answer) return params.defaultValue;
+    return answer === "y" || answer === "yes";
+  } finally {
+    rl.close();
+  }
+}
+
+function installPackage(params: {
+  cwd: string;
+  command: string;
+  args: string[];
+}): Promise<number> {
+  const command =
+    process.platform === "win32" && params.command === "npm"
+      ? "npm.cmd"
+      : params.command;
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, params.args, {
+      cwd: params.cwd,
+      stdio: "inherit",
+    });
+    child.once("error", reject);
+    child.once("close", (code) => resolve(code ?? 1));
+  });
 }
