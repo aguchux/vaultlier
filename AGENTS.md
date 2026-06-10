@@ -2,13 +2,13 @@
 
 ## Project Mission
 
-Vaultlier is a developer security product for managing application configuration through a sealed, centrally hosted vault. The core package, **`vaultlierjs`** (in `packages/vaultlier`), replaces the traditional `.env` workflow with a typed runtime client, CLI tooling, and a portal where teams manage environment-specific secrets without writing secret values to local disk.
+Vaultlier is a developer security product for managing application configuration through a sealed, centrally hosted vault. The core package, **`vaultlier`** (in `packages/vaultlier`), replaces the traditional `.env` workflow with a typed runtime client, CLI tooling, and a portal where teams manage environment-specific secrets without writing secret values to local disk.
 
 The v0.1 product surface maps to three deliverables in this monorepo:
 
 - **`apps/web`** — the client/users-facing site and portal (vaultlier.com)
 - **`apps/docs`** — the public documentation portal
-- **`packages/vaultlier`** — the published `vaultlierjs` npm library (runtime SDK + CLI + type generation)
+- **`packages/vaultlier`** — the published `vaultlier` npm library (runtime SDK + CLI + type generation)
 
 Supporting capabilities within those surfaces:
 
@@ -47,7 +47,7 @@ The repository is a **Turborepo monorepo** managed with **npm workspaces** (`app
 ```txt
 apps/web      → vaultlier.com — the client / users-facing site and portal (Next.js, :3000)
 apps/docs     → public documentation portal (Next.js, :3001)
-packages/vaultlier → the published `vaultlierjs` npm library (CLI + runtime SDK + type generation)
+packages/vaultlier → the published `vaultlier` npm library (CLI + runtime SDK + type generation)
 ```
 
 Shared internal (unpublished) packages support the above:
@@ -63,7 +63,7 @@ packages/typescript-config → shared tsconfig presets (@repo/typescript-config)
 ### Expected User Flow
 
 ```bash
-npm install vaultlierjs
+npm install vaultlier
 npx vaultlier init
 npx vaultlier pull --env=prod
 npx vaultlier push --env=staging
@@ -98,7 +98,7 @@ This is the **current** structure. Build new product code into this layout; do n
 │   └── docs/                   # public documentation portal (Next.js, :3001)
 │
 ├── packages/
-│   ├── vaultlier/              # ⬅ the published `vaultlierjs` npm library (TO BE CREATED)
+│   ├── vaultlier/              # ⬅ the published `vaultlier` npm library (TO BE CREATED)
 │   │                           #    holds: CLI, runtime SDK, type generation, shared schema types
 │   ├── ui/                     # shared React components (@repo/ui)
 │   ├── eslint-config/          # shared ESLint config (@repo/eslint-config)
@@ -116,7 +116,7 @@ The npm library is the heart of the product. Organize it with clear public entry
 
 ```txt
 packages/vaultlier/
-├── package.json                # name: "vaultlierjs", exports map below
+├── package.json                # name: "vaultlier", exports map below
 ├── src/
 │   ├── index.ts                # public runtime entry → createClient
 │   ├── runtime/                # edge-compatible SDK (fetch + Web Crypto, no Node imports)
@@ -130,7 +130,7 @@ Suggested `exports` so the runtime stays import-light:
 
 ```jsonc
 {
-  "name": "vaultlierjs",
+  "name": "vaultlier",
   "exports": {
     ".": "./dist/index.js",            // runtime SDK (edge-safe)
     "./runtime": "./dist/runtime/index.js",
@@ -229,7 +229,7 @@ wrote Vaultlier.json · lib/Vaultlier.ts
 
 ### 3. Runtime SDK Agent
 
-Responsible for the runtime SDK imported by user applications — the default `vaultlierjs` export (`packages/vaultlier/src/runtime/`). Must stay edge-compatible and free of Node-only imports.
+Responsible for the runtime SDK imported by user applications — the default `vaultlier` export (`packages/vaultlier/src/runtime/`). Must stay edge-compatible and free of Node-only imports.
 
 Public API target:
 
@@ -289,7 +289,7 @@ Output:
 
 ```ts
 // auto-generated — do not edit
-import { createClient } from 'vaultlierjs';
+import { createClient } from 'vaultlier';
 
 export const vault = createClient<{
   STRIPE_SECRET: string;
@@ -540,8 +540,7 @@ Use **npm workspaces** (the repo pins `npm@11.12.0` via `packageManager`). Run c
 Use the product naming carefully:
 
 - `Vaultlier` for the company/product and website (vaultlier.com, served by `apps/web`).
-- `vaultlierjs` for the published npm package name (`packages/vaultlier`).
-- `vaultlier` for the CLI command (`npx vaultlier …`) and code imports (`import { createClient } from 'vaultlierjs'`).
+- `vaultlier` for the published npm package name (`packages/vaultlier`), the CLI command (`npx vaultlier …`), and code imports (`import { createClient } from 'vaultlier'`).
 - `Vaultlier.json` / `lib/Vaultlier.ts` for generated artifacts.
 - `VAULTLIER_API_KEY` for the runtime environment variable.
 

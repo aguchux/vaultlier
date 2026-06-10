@@ -37,7 +37,7 @@ export function generateClient(config: VaultlierConfig): string {
   const schemaBlock = fields.length > 0 ? `\n${fields}\n` : "";
 
   return `${HEADER}
-import { createClient } from 'vaultlierjs';
+import { createClient } from 'vaultlier';
 
 export const vault = createClient<{${schemaBlock}}>({ projectId: '${config.projectId}' });
 `;

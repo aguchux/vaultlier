@@ -1,6 +1,6 @@
-# Security Model — vaultlierjs
+# Security Model — vaultlier
 
-Vaultlier replaces the `.env` workflow without writing secret values to disk. This document states the guarantees the `vaultlierjs` package makes and how to report issues.
+Vaultlier replaces the `.env` workflow without writing secret values to disk. This document states the guarantees the `vaultlier` package makes and how to report issues.
 
 ## Guarantees
 

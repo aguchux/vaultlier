@@ -1,11 +1,11 @@
-# vaultlierjs
+# vaultlier
 
 Typed runtime client, CLI, and type generation for [Vaultlier](https://vaultlier.com) — a sealed, centrally hosted configuration vault. Replaces the `.env` workflow without writing secret values to disk.
 
 ## Install
 
 ```bash
-npm install vaultlierjs
+npm install vaultlier
 ```
 
 ## Quick start
@@ -29,7 +29,7 @@ config.DATABASE_URL; // typed
 Or construct a client directly:
 
 ```ts
-import { createClient } from "vaultlierjs";
+import { createClient } from "vaultlier";
 
 export const vault = createClient<{ DATABASE_URL: string }>({
   projectId: "prj_checkout_api",
@@ -46,8 +46,8 @@ export const vault = createClient<{ DATABASE_URL: string }>({
 
 | Import | Surface | Environment |
 | --- | --- | --- |
-| `vaultlierjs` | Runtime SDK (`createClient`) | Edge-safe (Node 18+, Bun, Deno, Workers, Edge, Lambda) |
-| `vaultlierjs/cli` | CLI programmatic API | Node-only |
+| `vaultlier` | Runtime SDK (`createClient`) | Edge-safe (Node 18+, Bun, Deno, Workers, Edge, Lambda) |
+| `vaultlier/cli` | CLI programmatic API | Node-only |
 
 The runtime entry uses only `fetch` and Web Crypto — no Node-only imports, no third-party dependencies.
 

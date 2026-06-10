@@ -1,5 +1,5 @@
 {
-  "name": "vaultlierjs",
+  "name": "vaultlier-cloud",
   "private": true,
   "scripts": {
     "build": "turbo run build",

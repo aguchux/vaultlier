@@ -1,6 +1,6 @@
-name: Release vaultlierjs
+name: Release vaultlier
 
-# Publishes the `vaultlierjs` package to npm with provenance when a GitHub
+# Publishes the `vaultlier` package to npm with provenance when a GitHub
 # Release is published. Create a release whose tag matches the package version
 # (e.g. tag `v0.1.0` for version 0.1.0).
 on:
@@ -30,9 +30,9 @@ jobs:
         run: npm ci
 
       - name: Verify (lint, types, tests, build)
-        run: npx turbo run lint check-types test build --filter=vaultlierjs
+        run: npx turbo run lint check-types test build --filter=vaultlier
 
       - name: Publish to npm with provenance
-        run: npm publish --workspace=vaultlierjs --provenance --access public
+        run: npm publish --workspace=vaultlier --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
