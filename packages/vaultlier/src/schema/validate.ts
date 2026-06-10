@@ -29,6 +29,10 @@ export function validateConfig(input: unknown): ValidationResult {
 
   const cfg = input as Partial<VaultlierConfig>;
 
+  if (cfg.$schema !== undefined && typeof cfg.$schema !== "string") {
+    errors.push("`$schema` must be a string when present");
+  }
+
   if (typeof cfg.projectId !== "string" || cfg.projectId.length === 0) {
     errors.push("`projectId` is required and must be a non-empty string");
   }

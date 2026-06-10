@@ -15,6 +15,24 @@ describe("validateConfig", () => {
     expect(validateConfig(valid).valid).toBe(true);
   });
 
+  it("accepts a string $schema reference", () => {
+    expect(
+      validateConfig({
+        $schema: "https://schema.vaultlier.com/v2/vaultlier.schema.json",
+        ...valid,
+      }).valid,
+    ).toBe(true);
+  });
+
+  it("rejects a non-string $schema reference", () => {
+    const { valid: ok, errors } = validateConfig({
+      $schema: 42,
+      ...valid,
+    });
+    expect(ok).toBe(false);
+    expect(errors.join()).toMatch(/\$schema/);
+  });
+
   it("requires projectId", () => {
     const { valid: ok, errors } = validateConfig({ ...valid, projectId: "" });
     expect(ok).toBe(false);

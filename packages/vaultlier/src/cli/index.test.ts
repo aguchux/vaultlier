@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 import { maskApiKey, parseArgs, run } from "./index.js";
-import { ExitCode } from "../schema/types.js";
+import { CONFIG_SCHEMA_URL, ExitCode } from "../schema/types.js";
 
 const tempDirs: string[] = [];
 
@@ -90,7 +90,9 @@ describe("run", () => {
     expect(stdout.read()).toContain("validated - 2 environments synced");
 
     const config = await readFile(join(cwd, "vaultlier.json"), "utf8");
-    expect(config).toContain('"projectId": "prj_checkout_api"');
+    const parsedConfig = JSON.parse(config) as Record<string, unknown>;
+    expect(parsedConfig.$schema).toBe(CONFIG_SCHEMA_URL);
+    expect(parsedConfig.projectId).toBe("prj_checkout_api");
     expect(config).not.toContain("vlt_test_12345678");
 
     const client = await readFile(join(cwd, "lib", "Vaultlier.ts"), "utf8");
