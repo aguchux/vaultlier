@@ -52,9 +52,7 @@ After `vaultlier` exists on npm:
 The workflow already has `id-token: write`, which npm requires for OIDC.
 
 ---
-git add .github/workflows/release.yml publish.md package.json
-git commit -m "Use trusted publishing for npm releases"
-git push
+
 ## Releasing a version
 
 The workflow triggers when a GitHub Release is published. The tag should match
