@@ -2,7 +2,8 @@
  * Type generator for `lib/Vaultlier.ts`.
  *
  * Produces a deterministic, edit-free TypeScript client from a validated
- * `Vaultlier.json`. Never emits secret values, API keys, or decrypted data.
+ * Vaultlier config metadata. Never emits secret values, API keys, or decrypted
+ * data.
  */
 
 import type { VaultKeyType, VaultlierConfig } from "../schema/types.js";

@@ -6,8 +6,21 @@
  * All commands return a numeric exit code (see ExitCode).
  */
 
-import { ExitCode } from "../schema/types.js";
-import { maskSecret } from "../schema/security.js";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { stdin as processStdin, stdout as processStdout } from "node:process";
+import { createInterface } from "node:readline/promises";
+import { generateClient } from "../generator/index.js";
+import {
+  API_KEY_ENV,
+  CONFIG_FILES,
+  CONFIG_SCHEMA_URL,
+  ExitCode,
+  GENERATED_FILES,
+} from "../schema/types.js";
+import type { VaultlierConfig } from "../schema/types.js";
+import { looksLikeApiKey, maskSecret } from "../schema/security.js";
+import { parseConfig, validateConfig } from "../schema/validate.js";
 
 export type CommandName = "init" | "pull" | "push" | "diff" | "whoami";
 
@@ -17,15 +30,58 @@ export interface ParsedArgs {
   flags: Record<string, string | boolean>;
 }
 
+export interface RunOptions {
+  cwd?: string;
+  env?: Record<string, string | undefined>;
+  stdin?: NodeJS.ReadableStream;
+  stdout?: Pick<NodeJS.WritableStream, "write">;
+  stderr?: Pick<NodeJS.WritableStream, "write">;
+}
+
+interface CliContext {
+  cwd: string;
+  env: Record<string, string | undefined>;
+  stdin: NodeJS.ReadableStream;
+  stdout: Pick<NodeJS.WritableStream, "write">;
+  stderr: Pick<NodeJS.WritableStream, "write">;
+}
+
+interface CredentialCache {
+  projectId: string;
+  apiKey: string;
+}
+
+const VALUE_FLAGS = new Set([
+  "api-key",
+  "apiKey",
+  "env",
+  "environments",
+  "project-id",
+  "projectId",
+]);
+
 /** Parse `argv` (without `node` and script path) into a command + flags. */
 export function parseArgs(argv: string[]): ParsedArgs {
   const flags: Record<string, string | boolean> = {};
   let command: string | undefined;
 
-  for (const arg of argv) {
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i]!;
     if (arg.startsWith("--")) {
       const [key, value] = arg.slice(2).split("=", 2);
-      if (key) flags[key] = value ?? true;
+      if (!key) continue;
+      if (value !== undefined) {
+        flags[key] = value;
+        continue;
+      }
+
+      const next = argv[i + 1];
+      if (VALUE_FLAGS.has(key) && next && !next.startsWith("--")) {
+        flags[key] = next;
+        i += 1;
+      } else {
+        flags[key] = true;
+      }
     } else if (command === undefined) {
       command = arg;
     }
@@ -40,54 +96,318 @@ export function maskApiKey(apiKey: string): string {
   return maskSecret(apiKey);
 }
 
-const HELP = `vaultlier — sealed configuration vault CLI
+const HELP = `vaultlier - sealed configuration vault CLI
 
 Usage:
   vaultlier <command> [options]
 
 Commands:
-  init                 Authenticate and write Vaultlier.json + lib/Vaultlier.ts
-  pull --env=<name>    Fetch portal schema and regenerate the typed client
+  init                 Authenticate and write vaultlier.json + lib/Vaultlier.ts
+  pull --env=<name>    Fetch schema metadata and regenerate the typed client
   push --env=<name>    Push local schema additions to the portal
   diff --env=<name>    Show schema differences between local and portal
-  whoami               Print the authenticated project/user context
+  whoami               Print the authenticated project context
 
 Options:
+  --project-id=<id>    Project ID used by init
+  --api-key=<key>      API key used by init; cached locally, never in generated files
   --env=<name|all>     Target environment
+  --environments=a,b   Initial environment list for init
+  --force              Allow init to overwrite existing config metadata
   --help               Show this help
 `;
 
-/**
- * Run the CLI. Returns an exit code. Implementations are stubs that establish
- * the contract (output style, exit codes, no-secret guarantees) and are filled
- * in as the API lands.
- */
-export async function run(argv: string[]): Promise<ExitCode> {
+/** Run the CLI. Returns an exit code. */
+export async function run(
+  argv: string[],
+  options: RunOptions = {},
+): Promise<ExitCode> {
   const { command, flags } = parseArgs(argv);
+  const ctx: CliContext = {
+    cwd: options.cwd ?? process.cwd(),
+    env: options.env ?? process.env,
+    stdin: options.stdin ?? processStdin,
+    stdout: options.stdout ?? process.stdout,
+    stderr: options.stderr ?? process.stderr,
+  };
 
   if (!command || flags.help) {
-    process.stdout.write(HELP);
+    ctx.stdout.write(HELP);
     return ExitCode.Success;
   }
 
   switch (command as CommandName) {
     case "init":
-      return notImplemented("init");
+      return initCommand(flags, ctx);
     case "pull":
-      return notImplemented("pull");
+      return pullCommand(flags, ctx);
     case "push":
-      return notImplemented("push");
+      return portalCommand("push", flags, ctx);
     case "diff":
-      return notImplemented("diff");
+      return portalCommand("diff", flags, ctx);
     case "whoami":
-      return notImplemented("whoami");
+      return whoamiCommand(ctx);
     default:
-      process.stderr.write(`Unknown command: ${command}\n\n${HELP}`);
+      ctx.stderr.write(`Unknown command: ${command}\n\n${HELP}`);
       return ExitCode.GenericError;
   }
 }
 
-function notImplemented(command: string): ExitCode {
-  process.stderr.write(`vaultlier ${command}: not yet implemented\n`);
+async function initCommand(
+  flags: Record<string, string | boolean>,
+  ctx: CliContext,
+): Promise<ExitCode> {
+  const projectId = await resolveTextInput({
+    flags,
+    names: ["project-id", "projectId"],
+    prompt: "projectId: ",
+    ctx,
+  });
+  const apiKey = await resolveTextInput({
+    flags,
+    names: ["api-key", "apiKey"],
+    prompt: "apiKey: ",
+    ctx,
+    fallback: ctx.env[API_KEY_ENV],
+  });
+
+  if (!projectId) {
+    ctx.stderr.write("vaultlier init: missing projectId\n");
+    return ExitCode.SchemaInvalid;
+  }
+  if (!apiKey) {
+    ctx.stderr.write(
+      `vaultlier init: missing API key. Pass --api-key or set ${API_KEY_ENV}.\n`,
+    );
+    return ExitCode.AuthFailed;
+  }
+  if (!looksLikeApiKey(apiKey)) {
+    ctx.stderr.write(
+      'vaultlier init: invalid API key format (expected a "vlt_" key)\n',
+    );
+    return ExitCode.AuthFailed;
+  }
+
+  const existingConfigPath = await findConfigPath(ctx.cwd);
+  if (flags.force !== true && existingConfigPath) {
+    ctx.stderr.write(
+      `vaultlier init: ${existingConfigPath.name} already exists\n`,
+    );
+    ctx.stderr.write("rerun with --force to overwrite generated metadata\n");
+    return ExitCode.GenericError;
+  }
+
+  const configPath = join(ctx.cwd, GENERATED_FILES.config);
+  const environments = parseListFlag(flags.environments) ?? [
+    "dev",
+    "staging",
+    "prod",
+  ];
+  const config: VaultlierConfig = {
+    $schema: CONFIG_SCHEMA_URL,
+    projectId,
+    version: 1,
+    environments,
+    keys: {},
+  };
+  const validation = validateConfig(config);
+  if (!validation.valid) {
+    ctx.stderr.write(`vaultlier init: ${validation.errors.join("; ")}\n`);
+    return ExitCode.SchemaInvalid;
+  }
+
+  await writeJson(configPath, config);
+  await writeGeneratedClient(ctx.cwd, config);
+  await writeCredentialCache(ctx.cwd, { projectId, apiKey });
+
+  ctx.stdout.write(`validated - ${environments.length} environments synced\n`);
+  ctx.stdout.write(
+    `wrote ${GENERATED_FILES.config} - ${GENERATED_FILES.client}\n`,
+  );
+  return ExitCode.Success;
+}
+
+async function pullCommand(
+  flags: Record<string, string | boolean>,
+  ctx: CliContext,
+): Promise<ExitCode> {
+  const config = await readLocalConfig(ctx);
+  if (!config) return ExitCode.SchemaInvalid;
+
+  const envResult = validateEnvFlag(flags, config, ctx);
+  if (envResult !== ExitCode.Success) return envResult;
+
+  await writeGeneratedClient(ctx.cwd, config);
+  ctx.stdout.write(
+    `validated - ${config.environments.length} environments synced\n`,
+  );
+  ctx.stdout.write(`wrote ${GENERATED_FILES.client}\n`);
+  return ExitCode.Success;
+}
+
+async function whoamiCommand(ctx: CliContext): Promise<ExitCode> {
+  const config = await readLocalConfig(ctx);
+  if (!config) return ExitCode.SchemaInvalid;
+
+  const credentials = await readCredentialCache(ctx.cwd);
+  ctx.stdout.write(`projectId: ${config.projectId}\n`);
+  ctx.stdout.write(`environments: ${config.environments.join(", ")}\n`);
+  ctx.stdout.write(
+    `apiKey: ${credentials ? maskApiKey(credentials.apiKey) : "(not cached)"}\n`,
+  );
+  return ExitCode.Success;
+}
+
+async function portalCommand(
+  command: "push" | "diff",
+  flags: Record<string, string | boolean>,
+  ctx: CliContext,
+): Promise<ExitCode> {
+  const config = await readLocalConfig(ctx);
+  if (!config) return ExitCode.SchemaInvalid;
+
+  const envResult = validateEnvFlag(flags, config, ctx);
+  if (envResult !== ExitCode.Success) return envResult;
+
+  ctx.stderr.write(
+    `vaultlier ${command}: portal API sync is not available in this build yet\n`,
+  );
   return ExitCode.GenericError;
+}
+
+async function readLocalConfig(
+  ctx: CliContext,
+): Promise<VaultlierConfig | undefined> {
+  try {
+    const configPath = await findConfigPath(ctx.cwd);
+    if (!configPath) {
+      throw new Error(
+        `No Vaultlier config found (expected ${CONFIG_FILES.join(" or ")})`,
+      );
+    }
+    const raw = await readFile(configPath.path, "utf8");
+    return parseConfig(raw);
+  } catch (err) {
+    ctx.stderr.write(`vaultlier: ${(err as Error).message}\n`);
+    return undefined;
+  }
+}
+
+function validateEnvFlag(
+  flags: Record<string, string | boolean>,
+  config: VaultlierConfig,
+  ctx: CliContext,
+): ExitCode {
+  const env = typeof flags.env === "string" ? flags.env : undefined;
+  if (!env || env === "all") return ExitCode.Success;
+  if (!config.environments.includes(env)) {
+    ctx.stderr.write(`vaultlier: unknown environment "${env}"\n`);
+    ctx.stderr.write(`known environments: ${config.environments.join(", ")}\n`);
+    return ExitCode.SchemaInvalid;
+  }
+  return ExitCode.Success;
+}
+
+async function writeGeneratedClient(
+  cwd: string,
+  config: VaultlierConfig,
+): Promise<void> {
+  const clientPath = join(cwd, GENERATED_FILES.client);
+  await mkdir(dirname(clientPath), { recursive: true });
+  await writeFile(clientPath, generateClient(config), "utf8");
+}
+
+async function writeCredentialCache(
+  cwd: string,
+  credentials: CredentialCache,
+): Promise<void> {
+  const credentialPath = join(cwd, ".vaultlier", "credentials.json");
+  await mkdir(dirname(credentialPath), { recursive: true });
+  await writeJson(credentialPath, credentials);
+}
+
+async function readCredentialCache(
+  cwd: string,
+): Promise<CredentialCache | undefined> {
+  try {
+    const parsed = JSON.parse(
+      await readFile(join(cwd, ".vaultlier", "credentials.json"), "utf8"),
+    ) as Partial<CredentialCache>;
+    if (
+      typeof parsed.projectId === "string" &&
+      typeof parsed.apiKey === "string"
+    ) {
+      return { projectId: parsed.projectId, apiKey: parsed.apiKey };
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
+async function writeJson(path: string, value: unknown): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function findConfigPath(
+  cwd: string,
+): Promise<{ name: (typeof CONFIG_FILES)[number]; path: string } | undefined> {
+  for (const name of CONFIG_FILES) {
+    const path = join(cwd, name);
+    if (await pathExists(path)) {
+      return { name, path };
+    }
+  }
+  return undefined;
+}
+
+function parseListFlag(
+  value: string | boolean | undefined,
+): string[] | undefined {
+  if (typeof value !== "string") return undefined;
+  const environments = value
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return environments.length > 0 ? environments : undefined;
+}
+
+async function resolveTextInput(params: {
+  flags: Record<string, string | boolean>;
+  names: string[];
+  prompt: string;
+  ctx: CliContext;
+  fallback?: string;
+}): Promise<string | undefined> {
+  for (const name of params.names) {
+    const value = params.flags[name];
+    if (typeof value === "string" && value.length > 0) return value;
+  }
+  if (params.fallback) return params.fallback;
+
+  const stdin = params.ctx.stdin as NodeJS.ReadableStream & {
+    isTTY?: boolean;
+  };
+  if (!stdin.isTTY) return undefined;
+
+  const rl = createInterface({
+    input: stdin,
+    output: processStdout,
+  });
+  try {
+    const answer = await rl.question(params.prompt);
+    return answer.trim() || undefined;
+  } finally {
+    rl.close();
+  }
 }

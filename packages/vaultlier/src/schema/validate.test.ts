@@ -43,12 +43,18 @@ describe("parseConfig", () => {
 
   it("throws on schema violations", () => {
     expect(() => parseConfig(JSON.stringify({ version: 1 }))).toThrow(
-      /Invalid Vaultlier\.json/,
+      /Invalid Vaultlier config/,
     );
   });
 
   it("returns the parsed config when valid", () => {
     expect(parseConfig(JSON.stringify(valid)).projectId).toBe(
+      "prj_checkout_api",
+    );
+  });
+
+  it("accepts a leading UTF-8 BOM", () => {
+    expect(parseConfig(`\uFEFF${JSON.stringify(valid)}`).projectId).toBe(
       "prj_checkout_api",
     );
   });

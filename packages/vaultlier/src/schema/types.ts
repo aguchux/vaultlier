@@ -9,7 +9,7 @@ export type VaultKeyType = "string" | "boolean" | "number" | "json";
 /** A scope is an environment name or the literal `"all"`. */
 export type VaultScope = "all" | (string & {});
 
-/** Schema definition for a single key, as stored in `Vaultlier.json`. */
+/** Schema definition for a single key, as stored in a Vaultlier config file. */
 export interface VaultKeySchema {
   type: VaultKeyType;
   /** Environments this key applies to. Defaults to `["all"]` when omitted. */
@@ -19,15 +19,21 @@ export interface VaultKeySchema {
 }
 
 /**
- * The on-disk `Vaultlier.json` shape. Metadata only — never contains
+ * The on-disk Vaultlier config shape. Metadata only — never contains
  * decrypted secret values.
  */
 export interface VaultlierConfig {
+  /** URL of the JSON Schema, for editor validation. Optional, ignored at runtime. */
+  $schema?: string;
   projectId: string;
   version: number;
   environments: string[];
   keys: Record<string, VaultKeySchema>;
 }
+
+/** Canonical hosted JSON Schema for the config file. */
+export const CONFIG_SCHEMA_URL =
+  "https://schema.vaultlier.com/v2/vaultlier.schema.json";
 
 /** Standard error shape returned by the API and surfaced by clients. */
 export interface VaultlierError {
@@ -53,6 +59,12 @@ export const API_KEY_ENV = "VAULTLIER_API_KEY";
 
 /** Names of the generated artifacts written by the CLI. */
 export const GENERATED_FILES = {
-  config: "Vaultlier.json",
+  config: "vaultlier.json",
   client: "lib/Vaultlier.ts",
 } as const;
+
+/** Config filenames accepted by the CLI. The first entry is the write target. */
+export const CONFIG_FILES = [
+  GENERATED_FILES.config,
+  "vaultlier.config.json",
+] as const;

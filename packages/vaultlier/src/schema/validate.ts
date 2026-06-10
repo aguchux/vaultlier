@@ -13,7 +13,7 @@ export interface ValidationResult {
 }
 
 /**
- * Validate a parsed `Vaultlier.json` object. Performs structural checks only;
+ * Validate a parsed Vaultlier config object. Performs structural checks only;
  * it never inspects or expects secret values. Returns a list of human-readable
  * errors rather than throwing, so callers can map to exit codes.
  */
@@ -21,7 +21,10 @@ export function validateConfig(input: unknown): ValidationResult {
   const errors: string[] = [];
 
   if (typeof input !== "object" || input === null) {
-    return { valid: false, errors: ["Vaultlier.json must be a JSON object"] };
+    return {
+      valid: false,
+      errors: ["Vaultlier config must be a JSON object"],
+    };
   }
 
   const cfg = input as Partial<VaultlierConfig>;
@@ -73,15 +76,15 @@ function validateKey(
 export function parseConfig(raw: string): VaultlierConfig {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(raw);
+    parsed = JSON.parse(raw.replace(/^\uFEFF/, ""));
   } catch (err) {
     throw new Error(
-      `Vaultlier.json is not valid JSON: ${(err as Error).message}`,
+      `Vaultlier config is not valid JSON: ${(err as Error).message}`,
     );
   }
   const { valid, errors } = validateConfig(parsed);
   if (!valid) {
-    throw new Error(`Invalid Vaultlier.json:\n - ${errors.join("\n - ")}`);
+    throw new Error(`Invalid Vaultlier config:\n - ${errors.join("\n - ")}`);
   }
   return parsed as VaultlierConfig;
 }

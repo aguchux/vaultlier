@@ -15,7 +15,7 @@ npx vaultlier init
 npx vaultlier pull --env=prod
 ```
 
-`init` writes two metadata-only artifacts — `Vaultlier.json` (schema) and `lib/Vaultlier.ts` (generated typed client). **No secret values are written to disk.**
+`init` writes two metadata-only artifacts — `vaultlier.json` (schema) and `lib/Vaultlier.ts` (generated typed client). Existing projects may also use `vaultlier.config.json` for schema metadata. **No secret values are written to disk.**
 
 ## Runtime usage
 
@@ -54,7 +54,7 @@ The runtime entry uses only `fetch` and Web Crypto — no Node-only imports, no 
 ## Security
 
 - Secrets are resolved in memory and never written to disk.
-- `Vaultlier.json` and `lib/Vaultlier.ts` contain metadata only — never secret values or API keys.
+- `vaultlier.json` / `vaultlier.config.json` and `lib/Vaultlier.ts` contain metadata only — never secret values or API keys.
 - Never commit your `VAULTLIER_API_KEY`.
 
 ## License
