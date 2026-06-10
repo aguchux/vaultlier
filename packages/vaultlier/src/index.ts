@@ -23,8 +23,4 @@ export {
   API_KEY_ENV,
 } from "./schema/types.js";
 
-export {
-  maskSecret,
-  redact,
-  REDACTED,
-} from "./schema/security.js";
+export { maskSecret, redact, REDACTED } from "./schema/security.js";

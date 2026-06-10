@@ -1,8 +1,4 @@
-import type {
-  VaultKeySchema,
-  VaultKeyType,
-  VaultlierConfig,
-} from "./types.js";
+import type { VaultKeySchema, VaultKeyType, VaultlierConfig } from "./types.js";
 
 const SUPPORTED_TYPES: readonly VaultKeyType[] = [
   "string",

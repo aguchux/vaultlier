@@ -44,10 +44,10 @@ export const vault = createClient<{ DATABASE_URL: string }>({
 
 ## Entry points
 
-| Import | Surface | Environment |
-| --- | --- | --- |
-| `vaultlier` | Runtime SDK (`createClient`) | Edge-safe (Node 18+, Bun, Deno, Workers, Edge, Lambda) |
-| `vaultlier/cli` | CLI programmatic API | Node-only |
+| Import          | Surface                      | Environment                                            |
+| --------------- | ---------------------------- | ------------------------------------------------------ |
+| `vaultlier`     | Runtime SDK (`createClient`) | Edge-safe (Node 18+, Bun, Deno, Workers, Edge, Lambda) |
+| `vaultlier/cli` | CLI programmatic API         | Node-only                                              |
 
 The runtime entry uses only `fetch` and Web Crypto — no Node-only imports, no third-party dependencies.
 

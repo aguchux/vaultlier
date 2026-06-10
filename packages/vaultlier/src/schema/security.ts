@@ -47,9 +47,7 @@ export function redact<T>(input: T, seen = new WeakSet<object>()): T {
 
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
-    out[key] = SENSITIVE_KEY_PATTERN.test(key)
-      ? REDACTED
-      : redact(value, seen);
+    out[key] = SENSITIVE_KEY_PATTERN.test(key) ? REDACTED : redact(value, seen);
   }
   return out as T;
 }

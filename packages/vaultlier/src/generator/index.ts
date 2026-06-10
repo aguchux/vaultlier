@@ -5,10 +5,7 @@
  * `Vaultlier.json`. Never emits secret values, API keys, or decrypted data.
  */
 
-import type {
-  VaultKeyType,
-  VaultlierConfig,
-} from "../schema/types.js";
+import type { VaultKeyType, VaultlierConfig } from "../schema/types.js";
 
 const HEADER = "// auto-generated — do not edit";
 

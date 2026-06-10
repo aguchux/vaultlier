@@ -132,11 +132,11 @@ Suggested `exports` so the runtime stays import-light:
 {
   "name": "vaultlier",
   "exports": {
-    ".": "./dist/index.js",            // runtime SDK (edge-safe)
+    ".": "./dist/index.js", // runtime SDK (edge-safe)
     "./runtime": "./dist/runtime/index.js",
-    "./cli": "./dist/cli/index.js"     // Node-only
+    "./cli": "./dist/cli/index.js", // Node-only
   },
-  "bin": { "vaultlier": "./bin/vaultlier.js" }
+  "bin": { "vaultlier": "./bin/vaultlier.js" },
 }
 ```
 
@@ -189,23 +189,23 @@ vaultlier whoami
 
 Command responsibilities:
 
-| Command | Responsibility |
-|---|---|
-| `init` | Authenticate, validate `apiKey` and `projectId`, write metadata and generated client. |
-| `pull` | Fetch portal schema/config metadata and regenerate the typed client. |
-| `push` | Push local schema additions to the portal after validation. |
-| `diff` | Show schema differences between local and portal state. |
-| `whoami` | Print current authenticated project/user context without exposing secrets. |
+| Command  | Responsibility                                                                        |
+| -------- | ------------------------------------------------------------------------------------- |
+| `init`   | Authenticate, validate `apiKey` and `projectId`, write metadata and generated client. |
+| `pull`   | Fetch portal schema/config metadata and regenerate the typed client.                  |
+| `push`   | Push local schema additions to the portal after validation.                           |
+| `diff`   | Show schema differences between local and portal state.                               |
+| `whoami` | Print current authenticated project/user context without exposing secrets.            |
 
 Exit codes:
 
-| Code | Meaning |
-|---:|---|
-| `0` | Success |
-| `1` | Generic error: network, parse, or IO |
-| `2` | Authentication failed |
-| `3` | Schema validation failed |
-| `4` | Conflict between local schema and portal |
+| Code | Meaning                                  |
+| ---: | ---------------------------------------- |
+|  `0` | Success                                  |
+|  `1` | Generic error: network, parse, or IO     |
+|  `2` | Authentication failed                    |
+|  `3` | Schema validation failed                 |
+|  `4` | Conflict between local schema and portal |
 
 CLI implementation rules:
 
@@ -235,15 +235,15 @@ Public API target:
 
 ```ts
 type VaultOptions = {
-  environment: 'dev' | 'staging' | 'prod' | string;
+  environment: "dev" | "staging" | "prod" | string;
   apiKey?: string;
-  cache?: 'memory' | 'none';
+  cache?: "memory" | "none";
   timeoutMs?: number;
 };
 
-function createClient<Schema>(
-  opts: { projectId: string }
-): (o: VaultOptions) => Promise<Schema>;
+function createClient<Schema>(opts: {
+  projectId: string;
+}): (o: VaultOptions) => Promise<Schema>;
 ```
 
 Resolution order:
@@ -289,13 +289,13 @@ Output:
 
 ```ts
 // auto-generated — do not edit
-import { createClient } from 'vaultlier';
+import { createClient } from "vaultlier";
 
 export const vault = createClient<{
   STRIPE_SECRET: string;
   DATABASE_URL: string;
   FEATURE_NEW_FLOW: boolean;
-}>({ projectId: 'prj_checkout_api' });
+}>({ projectId: "prj_checkout_api" });
 ```
 
 Generation rules:
@@ -311,12 +311,12 @@ Generation rules:
 
 Supported initial type mapping:
 
-| Vault type | TypeScript type |
-|---|---|
-| `string` | `string` |
-| `boolean` | `boolean` |
-| `number` | `number` |
-| `json` | `unknown` or typed object when schema is available |
+| Vault type | TypeScript type                                    |
+| ---------- | -------------------------------------------------- |
+| `string`   | `string`                                           |
+| `boolean`  | `boolean`                                          |
+| `number`   | `number`                                           |
+| `json`     | `unknown` or typed object when schema is available |
 
 ---
 
@@ -411,16 +411,16 @@ Responsible for encryption, auth, audit, and threat modeling.
 
 Security requirements:
 
-| Layer | Requirement |
-|---|---|
-| At rest | AES-256-GCM with per-project KEK. |
-| Key rotation | Per-project KEK rotated quarterly. |
-| In transit | TLS 1.3. |
-| Official client | Certificate pinning where practical. |
-| Auth | HMAC-signed requests. |
-| Authorization | Per-environment scopes and least privilege. |
-| Audit | Record actor, environment, timestamp, IP, read/write action. |
-| Local | No decrypted values written to disk. |
+| Layer           | Requirement                                                  |
+| --------------- | ------------------------------------------------------------ |
+| At rest         | AES-256-GCM with per-project KEK.                            |
+| Key rotation    | Per-project KEK rotated quarterly.                           |
+| In transit      | TLS 1.3.                                                     |
+| Official client | Certificate pinning where practical.                         |
+| Auth            | HMAC-signed requests.                                        |
+| Authorization   | Per-environment scopes and least privilege.                  |
+| Audit           | Record actor, environment, timestamp, IP, read/write action. |
+| Local           | No decrypted values written to disk.                         |
 
 Security rules:
 
@@ -653,12 +653,12 @@ vaultlier diff --env=<name>
 
 Current release direction:
 
-| Milestone | Scope | Target |
-|---|---|---|
-| v0.1 public beta | `init`, `pull`, `push`, `diff`, portal, Hobby + Team plans | Q2 |
-| v0.2 | Webhook deploy hooks, GitHub App, Vercel integration | Q3 |
-| v0.5 | SSO + SCIM, SOC 2 Type I, audit export | Q4 |
-| v1.0 | Self-hosted vault, BYOK/KMS, enterprise GA | Q1 next |
+| Milestone        | Scope                                                      | Target  |
+| ---------------- | ---------------------------------------------------------- | ------- |
+| v0.1 public beta | `init`, `pull`, `push`, `diff`, portal, Hobby + Team plans | Q2      |
+| v0.2             | Webhook deploy hooks, GitHub App, Vercel integration       | Q3      |
+| v0.5             | SSO + SCIM, SOC 2 Type I, audit export                     | Q4      |
+| v1.0             | Self-hosted vault, BYOK/KMS, enterprise GA                 | Q1 next |
 
 Agents must keep work aligned to the active milestone.
 

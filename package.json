@@ -7,7 +7,8 @@
     "lint": "turbo run lint && npm run lint:root",
     "lint:global": "eslint . --max-warnings 0",
     "lint:root": "eslint eslint.config.mjs --max-warnings 0",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "format": "prettier --write \"**/*.{js,cjs,mjs,ts,tsx,json,jsonc,css,md,mdx,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{js,cjs,mjs,ts,tsx,json,jsonc,css,md,mdx,yml,yaml}\"",
     "check-types": "turbo run check-types",
     "test": "turbo run test"
   },

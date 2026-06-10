@@ -40,11 +40,11 @@ Vaultlier replaces the `.env` workflow without writing secret values to disk. Th
 
 ## Helpers exported for safe handling
 
-| Export | Purpose |
-| --- | --- |
-| `maskSecret(value)` | Mask a secret for display. |
-| `redact(obj)` | Deep-redact sensitive keys before logging. |
-| `REDACTED` | The replacement marker (`[redacted]`). |
+| Export              | Purpose                                    |
+| ------------------- | ------------------------------------------ |
+| `maskSecret(value)` | Mask a secret for display.                 |
+| `redact(obj)`       | Deep-redact sensitive keys before logging. |
+| `REDACTED`          | The replacement marker (`[redacted]`).     |
 
 ## Reporting a vulnerability
 

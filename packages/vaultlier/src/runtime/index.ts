@@ -103,7 +103,12 @@ export class VaultlierRuntimeError extends Error {
   }
 
   /** Only safe fields are serialized — guards against accidental leakage. */
-  toJSON(): { name: string; code: string; message: string; requestId?: string } {
+  toJSON(): {
+    name: string;
+    code: string;
+    message: string;
+    requestId?: string;
+  } {
     return {
       name: this.name,
       code: this.code,
