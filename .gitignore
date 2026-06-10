@@ -5,15 +5,42 @@ node_modules
 .pnp
 .pnp.js
 
-# Local env files
+# Local env files — never commit secrets
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+!.env.example
+*.env
+
+# Vaultlier — local credential cache & secrets (NEVER commit)
+# The CLI may cache only an apiKey here for local dev. Decrypted secret
+# values are never written to disk. Vaultlier.json (metadata) IS committed.
+.vaultlier/
+.vaultlier.local
+.vaultlierrc
+vaultlier.local.json
+**/.vaultlier-cache/
+
+# Secrets, keys, and credentials of any kind
+*.pem
+*.key
+*.p12
+*.pfx
+*.cert
+*.crt
+*.keystore
+*.jks
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+secrets.json
+credentials.json
+**/*.secret
+**/*.secrets
 
 # Testing
 coverage
+*.lcov
 
 # Turbo
 .turbo
@@ -35,4 +62,4 @@ yarn-error.log*
 
 # Misc
 .DS_Store
-*.pem
+Thumbs.db

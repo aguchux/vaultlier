@@ -1,0 +1,81 @@
+{
+  "name": "vaultlierjs",
+  "version": "0.1.0",
+  "description": "Typed runtime client, CLI, and type generation for the Vaultlier sealed configuration vault. Replaces the .env workflow without writing secret values to disk.",
+  "license": "MIT",
+  "type": "module",
+  "keywords": [
+    "vaultlier",
+    "secrets",
+    "env",
+    "configuration",
+    "vault",
+    "dotenv",
+    "cli",
+    "runtime"
+  ],
+  "homepage": "https://vaultlier.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vaultlier/vaultlierjs.git",
+    "directory": "packages/vaultlier"
+  },
+  "bugs": {
+    "url": "https://github.com/vaultlier/vaultlierjs/issues"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime/index.d.ts",
+      "default": "./dist/runtime/index.js"
+    },
+    "./cli": {
+      "types": "./dist/cli/index.d.ts",
+      "default": "./dist/cli/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "vaultlier": "./dist/cli/bin.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "SECURITY.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "npm run build:js && npm run build:types",
+    "build:js": "tsup",
+    "build:types": "tsc -p tsconfig.build.json",
+    "dev": "tsup --watch",
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist .turbo node_modules",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "*",
+    "@repo/typescript-config": "*",
+    "@types/node": "^22.15.3",
+    "eslint": "^9.39.1",
+    "tsup": "^8.5.0",
+    "typescript": "5.9.2",
+    "vitest": "^3.2.4"
+  }
+}
