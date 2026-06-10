@@ -186,6 +186,7 @@ vaultlier pull --env=<name|all>
 vaultlier push --env=<name|all>
 vaultlier diff --env=<name>
 vaultlier whoami
+vaultlier dev [--port=<n>]
 ```
 
 Command responsibilities:
@@ -197,6 +198,7 @@ Command responsibilities:
 | `push`   | Push local schema additions to the portal after validation.                           |
 | `diff`   | Show schema differences between local and portal state.                               |
 | `whoami` | Print current authenticated project/user context without exposing secrets.            |
+| `dev`    | Start a local, loopback-only UI (default port 9090) that visualizes config **metadata only** for trust/transparency. Never reads or displays decrypted secret values. |
 
 Exit codes:
 

@@ -19,6 +19,18 @@ npx vaultlier pull --env=prod
 
 Generated config includes a `$schema` reference to `https://schema.vaultlier.com/v2/vaultlier.schema.json` for editor validation. **No secret values are written to disk.**
 
+## Inspect your config locally
+
+```bash
+npx vaultlier dev   # opens a local UI on http://127.0.0.1:9090
+```
+
+`vaultlier dev` starts a read-only dashboard, bound to loopback, that shows your
+project's **metadata only** - key names, types, scopes, environments, and a
+masked API key. Decrypted secret values are never read, stored, or displayed,
+and nothing leaves your machine. It's a transparency tool so you can see exactly
+what Vaultlier keeps about your project. Use `--port=<n>` to change the port.
+
 ## Runtime usage
 
 ```ts

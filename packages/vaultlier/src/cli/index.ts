@@ -22,8 +22,9 @@ import {
 import type { VaultlierConfig } from "../schema/types.js";
 import { looksLikeApiKey, maskSecret } from "../schema/security.js";
 import { parseConfig, validateConfig } from "../schema/validate.js";
+import { DEV_HOST, DEV_PORT, buildSnapshot, startDevServer } from "./dev.js";
 
-export type CommandName = "init" | "pull" | "push" | "diff" | "whoami";
+export type CommandName = "init" | "pull" | "push" | "diff" | "whoami" | "dev";
 
 export interface ParsedArgs {
   command?: string;
@@ -70,6 +71,8 @@ const VALUE_FLAGS = new Set([
   "apiKey",
   "env",
   "environments",
+  "host",
+  "port",
   "project-id",
   "projectId",
 ]);
@@ -121,12 +124,15 @@ Commands:
   push --env=<name>    Push local schema additions to the portal
   diff --env=<name>    Show schema differences between local and portal
   whoami               Print the authenticated project context
+  dev                  Start the local config UI (metadata only) on port ${DEV_PORT}
 
 Options:
   --project-id=<id>    Project ID used by init
   --api-key=<key>      API key used by init; cached locally, never in generated files
   --env=<name|all>     Target environment
   --environments=a,b   Initial environment list for init
+  --port=<n>           Port for vaultlier dev (default ${DEV_PORT})
+  --host=<addr>        Host for vaultlier dev (default ${DEV_HOST}, loopback only)
   --install            Install vaultlier dependency without prompting
   --no-install         Skip dependency install prompt
   --force              Allow init to overwrite existing config metadata
@@ -164,6 +170,8 @@ export async function run(
       return portalCommand("diff", flags, ctx);
     case "whoami":
       return whoamiCommand(ctx);
+    case "dev":
+      return devCommand(flags, ctx);
     default:
       ctx.stderr.write(`Unknown command: ${command}\n\n${HELP}`);
       return ExitCode.GenericError;
@@ -276,6 +284,74 @@ async function whoamiCommand(ctx: CliContext): Promise<ExitCode> {
     `apiKey: ${credentials ? maskApiKey(credentials.apiKey) : "(not cached)"}\n`,
   );
   return ExitCode.Success;
+}
+
+async function devCommand(
+  flags: Record<string, string | boolean>,
+  ctx: CliContext,
+): Promise<ExitCode> {
+  const configPath = await findConfigPath(ctx.cwd);
+  const config = await readLocalConfig(ctx);
+  if (!config || !configPath) return ExitCode.SchemaInvalid;
+
+  const port = parsePortFlag(flags.port, ctx);
+  if (port === undefined) return ExitCode.GenericError;
+  const host = typeof flags.host === "string" ? flags.host : DEV_HOST;
+
+  const credentials = await readCredentialCache(ctx.cwd);
+  const snapshot = buildSnapshot({
+    config,
+    configFile: configPath.name,
+    maskedApiKey: credentials ? maskApiKey(credentials.apiKey) : null,
+  });
+
+  let handle;
+  try {
+    handle = await startDevServer(snapshot, { port, host });
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "EADDRINUSE") {
+      ctx.stderr.write(
+        `vaultlier dev: port ${port} is already in use. Try --port=<n>.\n`,
+      );
+    } else {
+      ctx.stderr.write(`vaultlier dev: ${(err as Error).message}\n`);
+    }
+    return ExitCode.GenericError;
+  }
+
+  ctx.stdout.write(`vaultlier dev - config UI for ${config.projectId}\n`);
+  ctx.stdout.write(`  showing metadata only - secrets stay sealed\n`);
+  ctx.stdout.write(`  ${handle.url}\n`);
+  ctx.stdout.write(`  press Ctrl+C to stop\n`);
+
+  // Keep the process alive until interrupted. Tests inject their own runner.
+  await waitForShutdown(handle.close);
+  return ExitCode.Success;
+}
+
+/** Resolve when the process receives SIGINT/SIGTERM, then close the server. */
+function waitForShutdown(close: () => Promise<void>): Promise<void> {
+  return new Promise((resolve) => {
+    const shutdown = (): void => {
+      void close().finally(resolve);
+    };
+    process.once("SIGINT", shutdown);
+    process.once("SIGTERM", shutdown);
+  });
+}
+
+function parsePortFlag(
+  value: string | boolean | undefined,
+  ctx: CliContext,
+): number | undefined {
+  if (typeof value !== "string") return DEV_PORT;
+  const port = Number(value);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    ctx.stderr.write(`vaultlier dev: invalid --port "${value}"\n`);
+    return undefined;
+  }
+  return port;
 }
 
 async function portalCommand(

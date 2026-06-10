@@ -20,6 +20,12 @@ node_modules
 vaultlier.local.json
 **/.vaultlier-cache/
 
+# Stray CLI artifacts at the MONOREPO ROOT only (legit in consumer projects,
+# but noise here — created by running `vaultlier init`/`dev` from the root).
+/vaultlier.json
+/vaultlier.config.json
+/lib/Vaultlier.ts
+
 # Secrets, keys, and credentials of any kind
 *.pem
 *.key
