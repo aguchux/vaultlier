@@ -258,6 +258,34 @@ describe("run", () => {
     ).rejects.toThrow();
   });
 
+  it("init handles dependency installer spawn errors", async () => {
+    const cwd = await makeTempDir();
+    const stderr = capture();
+
+    const code = await run(
+      [
+        "init",
+        "--project-id=prj_checkout_api",
+        "--api-key=vlt_test_12345678",
+        "--install",
+      ],
+      {
+        cwd,
+        stdout: capture().stream,
+        stderr: stderr.stream,
+        installer: async () => {
+          throw new Error("spawn EINVAL");
+        },
+      },
+    );
+
+    expect(code).toBe(ExitCode.GenericError);
+    expect(stderr.read()).toContain("dependency install failed: spawn EINVAL");
+    await expect(
+      readFile(join(cwd, "vaultlier.json"), "utf8"),
+    ).rejects.toThrow();
+  });
+
   it("pull regenerates the typed client from local metadata", async () => {
     const cwd = await makeTempDir();
     await writeFile(

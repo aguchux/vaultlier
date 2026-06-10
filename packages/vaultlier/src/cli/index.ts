@@ -329,7 +329,15 @@ async function ensureVaultlierDependency(
 
   const { command, args } = await detectInstallCommand(ctx.cwd);
   ctx.stdout.write(`installing dependency - ${command} ${args.join(" ")}\n`);
-  const code = await ctx.installer({ cwd: ctx.cwd, command, args });
+  let code: number;
+  try {
+    code = await ctx.installer({ cwd: ctx.cwd, command, args });
+  } catch (err) {
+    ctx.stderr.write(
+      `vaultlier init: dependency install failed: ${(err as Error).message}\n`,
+    );
+    return ExitCode.GenericError;
+  }
   if (code !== 0) {
     ctx.stderr.write(`vaultlier init: dependency install failed (${code})\n`);
     return ExitCode.GenericError;
@@ -540,14 +548,10 @@ function installPackage(params: {
   command: string;
   args: string[];
 }): Promise<number> {
-  const command =
-    process.platform === "win32" && params.command === "npm"
-      ? "npm.cmd"
-      : params.command;
-
   return new Promise((resolve, reject) => {
-    const child = spawn(command, params.args, {
+    const child = spawn(params.command, params.args, {
       cwd: params.cwd,
+      shell: process.platform === "win32",
       stdio: "inherit",
     });
     child.once("error", reject);
