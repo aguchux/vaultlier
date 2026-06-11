@@ -95,7 +95,7 @@ describe("run", () => {
     expect(parsedConfig.projectId).toBe("prj_checkout_api");
     expect(config).not.toContain("vlt_test_12345678");
 
-    const client = await readFile(join(cwd, "lib", "Vaultlier.ts"), "utf8");
+    const client = await readFile(join(cwd, "lib", "vaultlier.ts"), "utf8");
     expect(client).toContain("createClient");
     expect(client).toContain("prj_checkout_api");
     expect(client).not.toContain("vlt_test_12345678");
@@ -312,7 +312,7 @@ describe("run", () => {
     });
 
     expect(code).toBe(ExitCode.Success);
-    const client = await readFile(join(cwd, "lib", "Vaultlier.ts"), "utf8");
+    const client = await readFile(join(cwd, "lib", "vaultlier.ts"), "utf8");
     expect(client).toContain("DATABASE_URL: string;");
     expect(client).toContain("FEATURE_NEW_FLOW: boolean;");
     expect(client).not.toContain("false");
@@ -343,7 +343,7 @@ describe("run", () => {
     });
 
     expect(code).toBe(ExitCode.Success);
-    const client = await readFile(join(cwd, "lib", "Vaultlier.ts"), "utf8");
+    const client = await readFile(join(cwd, "lib", "vaultlier.ts"), "utf8");
     expect(client).toContain("DATABASE_URL: string;");
   });
 

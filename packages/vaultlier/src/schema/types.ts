@@ -60,7 +60,7 @@ export const API_KEY_ENV = "VAULTLIER_API_KEY";
 /** Names of the generated artifacts written by the CLI. */
 export const GENERATED_FILES = {
   config: "vaultlier.json",
-  client: "lib/Vaultlier.ts",
+  client: "lib/vaultlier.ts",
 } as const;
 
 /** Config filenames accepted by the CLI. The first entry is the write target. */

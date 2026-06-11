@@ -119,7 +119,7 @@ Usage:
   vaultlier <command> [options]
 
 Commands:
-  init                 Authenticate and write vaultlier.json + lib/Vaultlier.ts
+  init                 Authenticate and write vaultlier.json + lib/vaultlier.ts
   pull --env=<name>    Fetch schema metadata and regenerate the typed client
   push --env=<name>    Push local schema additions to the portal
   diff --env=<name>    Show schema differences between local and portal

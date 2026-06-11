@@ -1,5 +1,5 @@
 /**
- * Type generator for `lib/Vaultlier.ts`.
+ * Type generator for `lib/vaultlier.ts`.
  *
  * Produces a deterministic, edit-free TypeScript client from a validated
  * Vaultlier config metadata. Never emits secret values, API keys, or decrypted
@@ -18,7 +18,7 @@ const TYPE_MAP: Record<VaultKeyType, string> = {
 };
 
 /**
- * Generate the contents of `lib/Vaultlier.ts` from config metadata.
+ * Generate the contents of `lib/vaultlier.ts` from config metadata.
  * Output is stable: keys are emitted in sorted order so regeneration is
  * deterministic and diff-friendly.
  */

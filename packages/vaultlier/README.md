@@ -15,7 +15,7 @@ npx vaultlier init
 npx vaultlier pull --env=prod
 ```
 
-`init` writes two metadata-only artifacts - `vaultlier.json` (schema) and `lib/Vaultlier.ts` (generated typed client). Existing projects may also use `vaultlier.config.json` for schema metadata.
+`init` writes two metadata-only artifacts - `vaultlier.json` (schema) and `lib/vaultlier.ts` (generated typed client). Existing projects may also use `vaultlier.config.json` for schema metadata.
 
 Generated config includes a `$schema` reference to `https://schema.vaultlier.com/v2/vaultlier.schema.json` for editor validation. **No secret values are written to disk.**
 
@@ -34,7 +34,7 @@ what Vaultlier keeps about your project. Use `--port=<n>` to change the port.
 ## Runtime usage
 
 ```ts
-import { vault } from "./lib/Vaultlier"; // generated client
+import { vault } from "./lib/vaultlier"; // generated client
 
 const config = await vault({ environment: "prod" });
 config.DATABASE_URL; // typed
@@ -68,7 +68,7 @@ The runtime entry uses only `fetch` and Web Crypto - no Node-only imports, no th
 ## Security
 
 - Secrets are resolved in memory and never written to disk.
-- `vaultlier.json` / `vaultlier.config.json` and `lib/Vaultlier.ts` contain metadata only - never secret values or API keys.
+- `vaultlier.json` / `vaultlier.config.json` and `lib/vaultlier.ts` contain metadata only - never secret values or API keys.
 - Never commit your `VAULTLIER_API_KEY`.
 
 ## License
