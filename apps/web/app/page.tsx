@@ -8,12 +8,10 @@ import {
   Users,
 } from "lucide-react";
 import { Button } from "@repo/ui/button";
-import { Logo } from "@repo/ui/logo";
 import { FeatureCard } from "@repo/ui/feature-card";
 import { CodeWindow } from "./components/code-window";
 import { SiteFooter } from "./components/site-footer";
-
-const NAV = ["Product", "Docs", "Security", "Company"];
+import { SiteHeader } from "./components/site-header";
 
 const FEATURES = [
   {
@@ -48,36 +46,6 @@ export default function Home(): React.JSX.Element {
       </main>
       <SiteFooter />
     </div>
-  );
-}
-
-function SiteHeader(): React.JSX.Element {
-  return (
-    <header className="mx-auto flex max-w-7xl items-center justify-between px-6 py-6 lg:px-8">
-      <Logo />
-      <nav className="hidden items-center gap-8 md:flex">
-        {NAV.map((item) => (
-          <a
-            key={item}
-            href="#"
-            className="text-sm font-medium text-ink-700 transition-colors hover:text-ink-900"
-          >
-            {item}
-          </a>
-        ))}
-      </nav>
-      <div className="flex items-center gap-3">
-        <a
-          href="/login"
-          className="hidden text-sm font-medium text-ink-700 hover:text-ink-900 sm:block"
-        >
-          Log in
-        </a>
-        <Button href="/dashboard" size="sm">
-          Get Started
-        </Button>
-      </div>
-    </header>
   );
 }
 
