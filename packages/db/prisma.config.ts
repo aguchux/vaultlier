@@ -15,12 +15,24 @@ import { defineConfig, env } from "prisma/config";
 const here = dirname(fileURLToPath(import.meta.url));
 loadEnv({ path: resolve(here, ".env") });
 
+function resolveDatasourceUrl(): string {
+  if (process.env.DATABASE_URL) {
+    return env("DATABASE_URL");
+  }
+
+  if (process.argv.includes("generate")) {
+    return "postgresql://vaultlier:placeholder@localhost:5432/vaultlier";
+  }
+
+  return env("DATABASE_URL");
+}
+
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     seed: "tsx prisma/seed.ts",
   },
   datasource: {
-    url: env("DATABASE_URL"),
+    url: resolveDatasourceUrl(),
   },
 });
