@@ -73,7 +73,7 @@ git commit -m "Release vaultlier 0.1.1"
 git push
 
 # 3. Cut the release with a tag matching the new package version:
-gh release create v0.1.1 --title "v0.1.1" --notes "Release vaultlier 0.1.1"
+gh release create v0.1.7 --title "v0.1.7" --notes "Release vaultlier 0.1.7"
 
 # 4. Watch the workflow run:
 gh run watch
