@@ -28,7 +28,7 @@ export function generateClient(config: VaultlierConfig): string {
   const fields = keyNames
     .map((name) => {
       const schema = config.keys[name]!;
-      return `  ${name}: ${TYPE_MAP[schema.type]};`;
+      return `  ${formatTypeKey(name)}: ${TYPE_MAP[schema.type]};`;
     })
     .join("\n");
 
@@ -39,4 +39,11 @@ import { createClient } from 'vaultlier';
 
 export const vault = createClient<{${schemaBlock}}>({ projectId: '${config.projectId}' });
 `;
+}
+
+function formatTypeKey(name: string): string {
+  if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name)) {
+    return name;
+  }
+  return JSON.stringify(name);
 }

@@ -71,6 +71,12 @@ function validateKey(
         `(expected one of: ${SUPPORTED_TYPES.join(", ")})`,
     );
   }
+  if (
+    schema.description !== undefined &&
+    typeof schema.description !== "string"
+  ) {
+    errors.push(`key "${name}" \`description\` must be a string when present`);
+  }
   if (schema.scopes !== undefined && !Array.isArray(schema.scopes)) {
     errors.push(`key "${name}" \`scopes\` must be an array when present`);
   }

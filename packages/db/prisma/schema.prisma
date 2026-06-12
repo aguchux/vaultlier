@@ -1,0 +1,307 @@
+// Vaultlier database schema.
+//
+// Models the v0.1 backend: users, organizations, projects, environments, keys
+// and their versions, API keys, roles, and audit logs.
+//
+// Security notes:
+//  - Secret VALUES are stored encrypted (ciphertext + nonce) on KeyVersion.
+//    Plaintext secret values are NEVER persisted. Encryption happens in the
+//    application/vault layer (AES-256-GCM per project KEK); the DB only holds
+//    opaque bytes.
+//  - API keys are stored as a hash + a non-sensitive prefix for display.
+//    The raw key is shown to the user once and never stored.
+//  - All secret reads/writes are recorded in AuditLog.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/client"
+  // Extensionless imports so bundlers (Next/Turbopack) can resolve the
+  // generated .ts sources; ".js" specifiers only work under tsc NodeNext.
+  importFileExtension = ""
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Identity & tenancy
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  memberships Membership[]
+  auditLogs   AuditLog[]
+  accounts    Account[]
+  sessions    Session[]
+
+  @@map("users")
+}
+
+// OAuth account linked to a user (Auth.js adapter model). One row per
+// provider (google, github) the user has signed in with.
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+// Database-backed portal session (Auth.js adapter model).
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+// Email verification tokens (Auth.js adapter model).
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  plan      Plan     @default(HOBBY)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships Membership[]
+  projects    Project[]
+  auditLogs   AuditLog[]
+
+  @@map("organizations")
+}
+
+// Join between a user and an organization, carrying the user's role.
+model Membership {
+  id             String       @id @default(cuid())
+  userId         String
+  organizationId String
+  role           Role         @default(MEMBER)
+  createdAt      DateTime     @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@map("memberships")
+}
+
+// ---------------------------------------------------------------------------
+// Projects, environments, keys
+// ---------------------------------------------------------------------------
+
+model Project {
+  id             String   @id @default(cuid())
+  // Public-facing project identifier used by the CLI/runtime (e.g. prj_xxx).
+  publicId       String   @unique
+  organizationId String
+  name           String
+  // Current schema revision; bumped on each successful push.
+  schemaVersion  Int      @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  environments Environment[]
+  keys         Key[]
+  apiKeys      ApiKey[]
+  auditLogs    AuditLog[]
+
+  @@index([organizationId])
+  @@map("projects")
+}
+
+model Environment {
+  id        String   @id @default(cuid())
+  projectId String
+  // e.g. "dev", "staging", "prod" or a custom name.
+  name      String
+  createdAt DateTime @default(now())
+
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  keyVersions KeyVersion[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+  @@map("environments")
+}
+
+// A key is a named slot in a project's schema (metadata only).
+model Key {
+  id        String      @id @default(cuid())
+  projectId String
+  name      String
+  type      KeyType     @default(STRING)
+  // Scope restriction. Empty => applies to all environments.
+  scopes    String[]    @default([])
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  project  Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versions KeyVersion[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+  @@map("keys")
+}
+
+// An encrypted value of a key within a specific environment. Versioned so
+// rotations and history are preserved. Plaintext is never stored.
+model KeyVersion {
+  id            String   @id @default(cuid())
+  keyId         String
+  environmentId String
+  version       Int
+  // AES-256-GCM ciphertext, nonce, and auth tag. Opaque to the DB.
+  ciphertext    Bytes
+  nonce         Bytes
+  authTag       Bytes
+  // Identifier of the per-project KEK used, to support rotation.
+  kekId         String
+  createdAt     DateTime @default(now())
+  createdById   String?
+
+  key         Key         @relation(fields: [keyId], references: [id], onDelete: Cascade)
+  environment Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+
+  @@unique([keyId, environmentId, version])
+  @@index([keyId, environmentId])
+  @@map("key_versions")
+}
+
+// ---------------------------------------------------------------------------
+// API keys & access
+// ---------------------------------------------------------------------------
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  projectId   String
+  name        String
+  // Non-sensitive prefix shown in UI (e.g. "vlt_live_ab12"). For display only.
+  prefix      String
+  // Hash of the full key (e.g. SHA-256). The raw key is never stored.
+  hashedKey   String    @unique
+  role        Role      @default(MEMBER)
+  // Optional CIDR allowlist; empty => no IP restriction.
+  ipAllowlist String[]  @default([])
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  auditLogs AuditLog[]
+
+  @@index([projectId])
+  @@map("api_keys")
+}
+
+// ---------------------------------------------------------------------------
+// Audit
+// ---------------------------------------------------------------------------
+
+// Append-only record of security-relevant actions. Never stores secret values.
+model AuditLog {
+  id             String      @id @default(cuid())
+  action         AuditAction
+  organizationId String?
+  projectId      String?
+  // Actor: a user (portal) or an API key (CLI/runtime). Either may be null
+  // for system actions.
+  userId         String?
+  apiKeyId       String?
+  environment    String?
+  // Source IP, when available.
+  ipAddress      String?
+  // Arbitrary non-sensitive context (resource ids, etc).
+  metadata       Json?
+  createdAt      DateTime    @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  project      Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  apiKey       ApiKey?       @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Plan {
+  HOBBY
+  TEAM
+  ENTERPRISE
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum KeyType {
+  STRING
+  BOOLEAN
+  NUMBER
+  JSON
+}
+
+enum AuditAction {
+  USER_SIGNED_UP
+  ORGANIZATION_CREATED
+  PROJECT_CREATED
+  PROJECT_UPDATED
+  PROJECT_DELETED
+  ENVIRONMENT_CREATED
+  KEY_CREATED
+  KEY_UPDATED
+  KEY_DELETED
+  SECRET_READ
+  SECRET_WRITTEN
+  API_KEY_CREATED
+  API_KEY_REVOKED
+  MEMBER_INVITED
+  MEMBER_REMOVED
+}

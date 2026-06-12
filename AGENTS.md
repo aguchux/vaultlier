@@ -96,11 +96,12 @@ This is the **current** structure. Build new product code into this layout; do n
 /
 ├── apps/
 │   ├── web/                    # vaultlier.com — users-facing site + portal (Next.js, :3000)
-│   └── docs/                   # public documentation portal (Next.js, :3001)
+│   ├── docs/                   # public documentation portal (Next.js, :3001)
+│   └── schema/                 # schema.vaultlier.com — hosts the config JSON Schema (Next.js, :3002)
 │
 ├── packages/
-│   ├── vaultlier/              # ⬅ the published `vaultlier` npm library (TO BE CREATED)
-│   │                           #    holds: CLI, runtime SDK, type generation, shared schema types
+│   ├── vaultlier/              # the published `vaultlier` npm library (CLI, runtime SDK, type gen)
+│   ├── db/                     # @repo/db — Prisma schema + shared client (PostgreSQL)
 │   ├── ui/                     # shared React components (@repo/ui)
 │   ├── eslint-config/          # shared ESLint config (@repo/eslint-config)
 │   └── typescript-config/      # shared tsconfig presets (@repo/typescript-config)
@@ -191,13 +192,13 @@ vaultlier dev [--port=<n>]
 
 Command responsibilities:
 
-| Command  | Responsibility                                                                        |
-| -------- | ------------------------------------------------------------------------------------- |
-| `init`   | Authenticate, validate `apiKey` and `projectId`, write metadata and generated client. |
-| `pull`   | Fetch portal schema/config metadata and regenerate the typed client.                  |
-| `push`   | Push local schema additions to the portal after validation.                           |
-| `diff`   | Show schema differences between local and portal state.                               |
-| `whoami` | Print current authenticated project/user context without exposing secrets.            |
+| Command  | Responsibility                                                                                                                                                        |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `init`   | Authenticate, validate `apiKey` and `projectId`, write metadata and generated client.                                                                                 |
+| `pull`   | Fetch portal schema/config metadata and regenerate the typed client.                                                                                                  |
+| `push`   | Push local schema additions to the portal after validation.                                                                                                           |
+| `diff`   | Show schema differences between local and portal state.                                                                                                               |
+| `whoami` | Print current authenticated project/user context without exposing secrets.                                                                                            |
 | `dev`    | Start a local, loopback-only UI (default port 9090) that visualizes config **metadata only** for trust/transparency. Never reads or displays decrypted secret values. |
 
 Exit codes:
@@ -371,19 +372,26 @@ Recommended portal pages:
 
 Responsible for the API consumed by CLI, portal, and runtime SDK.
 
-Core resources:
+Data layer: **`@repo/db`** (`packages/db`) — Prisma + PostgreSQL. Import the
+shared `prisma` client from `@repo/db`; never instantiate `PrismaClient`
+directly. The schema lives in `packages/db/prisma/schema.prisma`.
+
+Core resources (Prisma models in `@repo/db`):
 
 ```txt
-users
-organizations
-projects
-environments
-keys
-key_versions
-api_keys
-roles
-audit_logs
+User              organizations → Organization
+Membership        projects      → Project
+Environment       keys          → Key
+KeyVersion        api_keys      → ApiKey
+AuditLog          roles         → Role enum
 ```
+
+Security invariants enforced at the data layer:
+
+- `KeyVersion` stores AES-256-GCM `ciphertext` + `nonce` + `authTag` only —
+  **never plaintext secret values**.
+- `ApiKey` stores a `hashedKey` + display `prefix` — **never the raw key**.
+- `AuditLog` is append-only and never contains secret values.
 
 Core API responsibilities:
 

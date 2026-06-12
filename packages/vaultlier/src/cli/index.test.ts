@@ -41,6 +41,13 @@ describe("parseArgs", () => {
     expect(r.env).toBe("prod");
   });
 
+  it("parses key-value args and -g", () => {
+    const r = parseArgs(["-g", "env=prod"]);
+    expect(r.command).toBeUndefined();
+    expect(r.env).toBe("prod");
+    expect(r.flags.generate).toBe(true);
+  });
+
   it("parses space-separated flag values", () => {
     const r = parseArgs(["init", "--project-id", "prj_checkout_api"]);
     expect(r.flags["project-id"]).toBe("prj_checkout_api");
@@ -105,6 +112,37 @@ describe("run", () => {
       "utf8",
     );
     expect(credentials).toContain("vlt_test_12345678");
+  });
+
+  it("init can add detected env keys without writing env values", async () => {
+    const cwd = await makeTempDir();
+    await writeFile(
+      join(cwd, ".env.local"),
+      "DATABASE_URL=postgres://user:pass@example.com/db\nSTRIPE_SECRET=sk_test_secret\n",
+      "utf8",
+    );
+
+    const code = await run(
+      [
+        "init",
+        "--project-id=prj_checkout_api",
+        "--api-key=vlt_test_12345678",
+        "--yes",
+      ],
+      { cwd, stdout: capture().stream },
+    );
+
+    expect(code).toBe(ExitCode.Success);
+
+    const config = await readFile(join(cwd, "vaultlier.json"), "utf8");
+    expect(config).toContain("DATABASE_URL");
+    expect(config).toContain("STRIPE_SECRET");
+    expect(config).not.toContain("postgres://");
+    expect(config).not.toContain("sk_test_secret");
+
+    const client = await readFile(join(cwd, "lib", "vaultlier.ts"), "utf8");
+    expect(client).toContain("DATABASE_URL: string;");
+    expect(client).not.toContain("sk_test_secret");
   });
 
   it("init refuses to overwrite metadata without --force", async () => {
@@ -316,6 +354,172 @@ describe("run", () => {
     expect(client).toContain("DATABASE_URL: string;");
     expect(client).toContain("FEATURE_NEW_FLOW: boolean;");
     expect(client).not.toContain("false");
+  });
+
+  it("pull can generate a key-only env file from schema", async () => {
+    const cwd = await makeTempDir();
+    await writeFile(
+      join(cwd, "vaultlier.json"),
+      JSON.stringify(
+        {
+          projectId: "prj_checkout_api",
+          version: 2,
+          environments: ["dev", "prod"],
+          keys: {
+            STRIPE_SECRET: {
+              type: "string",
+              scopes: ["prod"],
+              description: "Stripe secret key",
+            },
+            DATABASE_URL: { type: "string", scopes: ["all"] },
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    const code = await run(["pull", "--env=prod", "--generate-env"], {
+      cwd,
+      stdout: capture().stream,
+    });
+
+    expect(code).toBe(ExitCode.Success);
+    const env = await readFile(join(cwd, ".env"), "utf8");
+    expect(env).toContain("DATABASE_URL=");
+    expect(env).toContain("# Stripe secret key\nSTRIPE_SECRET=");
+    expect(env).not.toContain("sk_test");
+  });
+
+  it("generate writes a key-only env file and respects env scope", async () => {
+    const cwd = await makeTempDir();
+    await writeFile(
+      join(cwd, "vaultlier.json"),
+      JSON.stringify(
+        {
+          projectId: "prj_checkout_api",
+          version: 2,
+          environments: ["dev", "prod"],
+          keys: {
+            STRIPE_SECRET: { type: "string", scopes: ["prod"] },
+            DATABASE_URL: { type: "string", scopes: ["all"] },
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    const code = await run(["-g", "env=dev"], {
+      cwd,
+      stdout: capture().stream,
+    });
+
+    expect(code).toBe(ExitCode.Success);
+    const env = await readFile(join(cwd, ".env"), "utf8");
+    expect(env).toBe("DATABASE_URL=\n");
+  });
+
+  it("generate does not overwrite an existing env file without confirmation", async () => {
+    const cwd = await makeTempDir();
+    await writeFile(
+      join(cwd, "vaultlier.json"),
+      JSON.stringify(
+        {
+          projectId: "prj_checkout_api",
+          version: 2,
+          environments: ["dev"],
+          keys: {
+            DATABASE_URL: { type: "string", scopes: ["all"] },
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+    await writeFile(join(cwd, ".env"), "DATABASE_URL=keep-me\n", "utf8");
+
+    const code = await run(["--generate", "env=dev"], {
+      cwd,
+      stdout: capture().stream,
+    });
+
+    expect(code).toBe(ExitCode.Success);
+    await expect(readFile(join(cwd, ".env"), "utf8")).resolves.toBe(
+      "DATABASE_URL=keep-me\n",
+    );
+  });
+
+  it("scan can update schema from env files and process.env references", async () => {
+    const cwd = await makeTempDir();
+    await writeFile(
+      join(cwd, "vaultlier.json"),
+      JSON.stringify(
+        {
+          projectId: "prj_checkout_api",
+          version: 2,
+          environments: ["dev"],
+          keys: {},
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+    await writeFile(join(cwd, ".env"), "DATABASE_URL=secret-url\n", "utf8");
+    await writeFile(
+      join(cwd, "app.ts"),
+      "console.log(process.env.FEATURE_NEW_FLOW, process.env['STRIPE_SECRET']);\n",
+      "utf8",
+    );
+
+    const code = await run(["scan", "--yes"], {
+      cwd,
+      stdout: capture().stream,
+    });
+
+    expect(code).toBe(ExitCode.Success);
+    const config = await readFile(join(cwd, "vaultlier.json"), "utf8");
+    expect(config).toContain("DATABASE_URL");
+    expect(config).toContain("FEATURE_NEW_FLOW");
+    expect(config).toContain("STRIPE_SECRET");
+    expect(config).not.toContain("secret-url");
+  });
+
+  it("push updates local schema from env keys before failing closed on portal sync", async () => {
+    const cwd = await makeTempDir();
+    const stderr = capture();
+    await writeFile(
+      join(cwd, "vaultlier.json"),
+      JSON.stringify(
+        {
+          projectId: "prj_checkout_api",
+          version: 2,
+          environments: ["dev"],
+          keys: {},
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+    await writeFile(join(cwd, ".env"), "DATABASE_URL=secret-url\n", "utf8");
+
+    const code = await run(["push", "--env=dev", "--yes"], {
+      cwd,
+      stdout: capture().stream,
+      stderr: stderr.stream,
+    });
+
+    expect(code).toBe(ExitCode.GenericError);
+    expect(stderr.read()).toContain("portal API sync is not available");
+
+    const config = await readFile(join(cwd, "vaultlier.json"), "utf8");
+    expect(config).toContain("DATABASE_URL");
+    expect(config).not.toContain("secret-url");
   });
 
   it("pull accepts vaultlier.config.json as an alternate config file", async () => {

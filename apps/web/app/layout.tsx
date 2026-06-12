@@ -12,9 +12,9 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Vaultlier - typed runtime configuration",
+  title: "Vaultlier — Configuration secrets, secured.",
   description:
-    "Vaultlier replaces scattered .env files with sealed, typed, auditable runtime configuration.",
+    "Vaultlier is a Node.js library and platform for managing application configuration in a sealed vault — without exposing environment variables locally.",
 };
 
 export default function RootLayout({
@@ -23,10 +23,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>
-        {children}
-      </body>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+      <body>{children}</body>
     </html>
   );
 }

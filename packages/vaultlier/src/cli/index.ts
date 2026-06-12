@@ -23,8 +23,21 @@ import type { VaultlierConfig } from "../schema/types.js";
 import { looksLikeApiKey, maskSecret } from "../schema/security.js";
 import { parseConfig, validateConfig } from "../schema/validate.js";
 import { DEV_HOST, DEV_PORT, buildSnapshot, startDevServer } from "./dev.js";
+import {
+  discoverEnvMetadata,
+  generateEnvFile,
+  mergeKeysIntoConfig,
+  writeEnvFile,
+} from "./env.js";
 
-export type CommandName = "init" | "pull" | "push" | "diff" | "whoami" | "dev";
+export type CommandName =
+  | "init"
+  | "pull"
+  | "push"
+  | "diff"
+  | "whoami"
+  | "dev"
+  | "scan";
 
 export interface ParsedArgs {
   command?: string;
@@ -72,6 +85,7 @@ const VALUE_FLAGS = new Set([
   "env",
   "environments",
   "host",
+  "output",
   "port",
   "project-id",
   "projectId",
@@ -84,6 +98,10 @@ export function parseArgs(argv: string[]): ParsedArgs {
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i]!;
+    if (arg === "-g") {
+      flags.generate = true;
+      continue;
+    }
     if (arg.startsWith("--")) {
       const [key, value] = arg.slice(2).split("=", 2);
       if (!key) continue;
@@ -98,6 +116,11 @@ export function parseArgs(argv: string[]): ParsedArgs {
         i += 1;
       } else {
         flags[key] = true;
+      }
+    } else if (arg.includes("=")) {
+      const [key, value] = arg.split("=", 2);
+      if (key && value !== undefined) {
+        flags[key] = value;
       }
     } else if (command === undefined) {
       command = arg;
@@ -125,6 +148,7 @@ Commands:
   diff --env=<name>    Show schema differences between local and portal
   whoami               Print the authenticated project context
   dev                  Start the local config UI (metadata only) on port ${DEV_PORT}
+  scan                 Detect env keys and optionally update schema metadata
 
 Options:
   --project-id=<id>    Project ID used by init
@@ -133,6 +157,10 @@ Options:
   --environments=a,b   Initial environment list for init
   --port=<n>           Port for vaultlier dev (default ${DEV_PORT})
   --host=<addr>        Host for vaultlier dev (default ${DEV_HOST}, loopback only)
+  --generate, -g       Create a key-only .env file from schema metadata
+  --generate-env       Create a key-only .env file after pull
+  --output=<path>      Target path for generated key-only .env (default .env)
+  --yes                Accept schema update prompts
   --install            Install vaultlier dependency without prompting
   --no-install         Skip dependency install prompt
   --force              Allow init to overwrite existing config metadata
@@ -154,6 +182,10 @@ export async function run(
     installer: options.installer ?? installPackage,
   };
 
+  if (flags.generate === true && (!command || command === "generate")) {
+    return generateCommand(flags, ctx);
+  }
+
   if (!command || flags.help) {
     ctx.stdout.write(HELP);
     return ExitCode.Success;
@@ -172,6 +204,8 @@ export async function run(
       return whoamiCommand(ctx);
     case "dev":
       return devCommand(flags, ctx);
+    case "scan":
+      return scanCommand(flags, ctx);
     default:
       ctx.stderr.write(`Unknown command: ${command}\n\n${HELP}`);
       return ExitCode.GenericError;
@@ -231,7 +265,7 @@ async function initCommand(
     "staging",
     "prod",
   ];
-  const config: VaultlierConfig = {
+  let config: VaultlierConfig = {
     $schema: CONFIG_SCHEMA_URL,
     projectId,
     version: 1,
@@ -243,6 +277,10 @@ async function initCommand(
     ctx.stderr.write(`vaultlier init: ${validation.errors.join("; ")}\n`);
     return ExitCode.SchemaInvalid;
   }
+
+  config = await maybeMergeDetectedKeys(config, flags, ctx, {
+    command: "init",
+  });
 
   await writeJson(configPath, config);
   await writeGeneratedClient(ctx.cwd, config);
@@ -266,6 +304,10 @@ async function pullCommand(
   if (envResult !== ExitCode.Success) return envResult;
 
   await writeGeneratedClient(ctx.cwd, config);
+  if (flags["generate-env"] === true) {
+    const envCode = await writeKeyOnlyEnvFile(config, flags, ctx);
+    if (envCode !== ExitCode.Success) return envCode;
+  }
   ctx.stdout.write(
     `validated - ${config.environments.length} environments synced\n`,
   );
@@ -330,6 +372,57 @@ async function devCommand(
   return ExitCode.Success;
 }
 
+async function scanCommand(
+  flags: Record<string, string | boolean>,
+  ctx: CliContext,
+): Promise<ExitCode> {
+  const discovery = await discoverEnvMetadata(ctx.cwd);
+  if (discovery.keys.length === 0) {
+    ctx.stdout.write("no env keys detected\n");
+    return ExitCode.Success;
+  }
+
+  ctx.stdout.write(`detected ${discovery.keys.length} env keys\n`);
+  for (const key of discovery.keys) {
+    ctx.stdout.write(`  ${key}\n`);
+  }
+
+  const configPath = await findConfigPath(ctx.cwd);
+  if (!configPath) {
+    ctx.stdout.write("no Vaultlier config found - run vaultlier init\n");
+    return ExitCode.Success;
+  }
+
+  const config = await readLocalConfig(ctx);
+  if (!config) return ExitCode.SchemaInvalid;
+
+  const updatedConfig = await maybeMergeDetectedKeys(config, flags, ctx, {
+    command: "scan",
+    discovery,
+  });
+  if (updatedConfig === config) return ExitCode.Success;
+
+  await writeJson(configPath.path, updatedConfig);
+  await writeGeneratedClient(ctx.cwd, updatedConfig);
+  ctx.stdout.write(
+    `wrote ${configPath.name} - ${GENERATED_FILES.client}\n`,
+  );
+  return ExitCode.Success;
+}
+
+async function generateCommand(
+  flags: Record<string, string | boolean>,
+  ctx: CliContext,
+): Promise<ExitCode> {
+  const config = await readLocalConfig(ctx);
+  if (!config) return ExitCode.SchemaInvalid;
+
+  const envResult = validateEnvFlag(flags, config, ctx);
+  if (envResult !== ExitCode.Success) return envResult;
+
+  return writeKeyOnlyEnvFile(config, flags, ctx);
+}
+
 /** Resolve when the process receives SIGINT/SIGTERM, then close the server. */
 function waitForShutdown(close: () => Promise<void>): Promise<void> {
   return new Promise((resolve) => {
@@ -359,16 +452,102 @@ async function portalCommand(
   flags: Record<string, string | boolean>,
   ctx: CliContext,
 ): Promise<ExitCode> {
-  const config = await readLocalConfig(ctx);
+  let config = await readLocalConfig(ctx);
   if (!config) return ExitCode.SchemaInvalid;
 
   const envResult = validateEnvFlag(flags, config, ctx);
   if (envResult !== ExitCode.Success) return envResult;
 
+  if (command === "push") {
+    const updatedConfig = await maybeMergeDetectedKeys(config, flags, ctx, {
+      command,
+    });
+    if (updatedConfig !== config) {
+      const configPath = await findConfigPath(ctx.cwd);
+      if (!configPath) return ExitCode.SchemaInvalid;
+      config = updatedConfig;
+      await writeJson(configPath.path, config);
+      await writeGeneratedClient(ctx.cwd, config);
+    }
+  }
+
   ctx.stderr.write(
     `vaultlier ${command}: portal API sync is not available in this build yet\n`,
   );
   return ExitCode.GenericError;
+}
+
+async function maybeMergeDetectedKeys(
+  config: VaultlierConfig,
+  flags: Record<string, string | boolean>,
+  ctx: CliContext,
+  params: {
+    command: "init" | "push" | "scan";
+    discovery?: Awaited<ReturnType<typeof discoverEnvMetadata>>;
+  },
+): Promise<VaultlierConfig> {
+  const discovery = params.discovery ?? (await discoverEnvMetadata(ctx.cwd));
+  const { config: updatedConfig, added } = mergeKeysIntoConfig(
+    config,
+    discovery.keys,
+  );
+
+  if (discovery.keys.length === 0 || added.length === 0) {
+    if (params.command === "scan" && discovery.keys.length > 0) {
+      ctx.stdout.write("schema already includes detected keys\n");
+    }
+    return config;
+  }
+
+  ctx.stdout.write(
+    `detected ${added.length} new env keys for schema metadata\n`,
+  );
+  for (const key of added) {
+    ctx.stdout.write(`  ${key}\n`);
+  }
+
+  let shouldUpdate = flags.yes === true;
+  if (!shouldUpdate) {
+    shouldUpdate = await confirm({
+      prompt:
+        "Add detected keys to Vaultlier schema metadata? Values are ignored. [y/N] ",
+      defaultValue: false,
+      ctx,
+    });
+  }
+
+  if (!shouldUpdate) {
+    ctx.stdout.write("skipped schema metadata update\n");
+    return config;
+  }
+
+  return updatedConfig;
+}
+
+async function writeKeyOnlyEnvFile(
+  config: VaultlierConfig,
+  flags: Record<string, string | boolean>,
+  ctx: CliContext,
+): Promise<ExitCode> {
+  const output = typeof flags.output === "string" ? flags.output : ".env";
+  const path = join(ctx.cwd, output);
+
+  if (flags.force !== true && (await pathExists(path))) {
+    const shouldOverwrite = await confirm({
+      prompt: `${output} already exists. Overwrite with key-only schema file? [y/N] `,
+      defaultValue: false,
+      ctx,
+    });
+    if (!shouldOverwrite) {
+      ctx.stdout.write(`skipped ${output}\n`);
+      return ExitCode.Success;
+    }
+  }
+
+  await mkdir(dirname(path), { recursive: true });
+  await writeEnvFile(path, generateEnvFile(config, getEnvFlag(flags)));
+  ctx.stdout.write(`wrote ${output} - keys only, no values\n`);
+  return ExitCode.Success;
 }
 
 async function ensureVaultlierDependency(
@@ -466,7 +645,7 @@ function validateEnvFlag(
   config: VaultlierConfig,
   ctx: CliContext,
 ): ExitCode {
-  const env = typeof flags.env === "string" ? flags.env : undefined;
+  const env = getEnvFlag(flags);
   if (!env || env === "all") return ExitCode.Success;
   if (!config.environments.includes(env)) {
     ctx.stderr.write(`vaultlier: unknown environment "${env}"\n`);
@@ -474,6 +653,12 @@ function validateEnvFlag(
     return ExitCode.SchemaInvalid;
   }
   return ExitCode.Success;
+}
+
+function getEnvFlag(
+  flags: Record<string, string | boolean>,
+): string | undefined {
+  return typeof flags.env === "string" ? flags.env : undefined;
 }
 
 async function writeGeneratedClient(

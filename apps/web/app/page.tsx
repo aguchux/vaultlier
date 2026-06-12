@@ -1,148 +1,149 @@
-import Image from "next/image";
-import Link from "next/link";
-import styles from "./page.module.css";
+import {
+  BookOpen,
+  ChevronRight,
+  Cloud,
+  Lock,
+  ShieldCheck,
+  TerminalSquare,
+  Users,
+} from "lucide-react";
+import { Button } from "@repo/ui/button";
+import { Logo } from "@repo/ui/logo";
+import { FeatureCard } from "@repo/ui/feature-card";
+import { CodeWindow } from "./components/code-window";
+import { SiteFooter } from "./components/site-footer";
 
-const workflow = [
+const NAV = ["Product", "Docs", "Security", "Company"];
+
+const FEATURES = [
   {
-    step: "01",
-    title: "Initialize once",
-    text: "Connect a project with an API key and generate vaultlier.json plus a typed client.",
+    icon: ShieldCheck,
+    title: "Secure by design",
+    description: "End-to-end encryption with per-project keys and audit logs.",
   },
   {
-    step: "02",
-    title: "Sync metadata",
-    text: "Pull schema updates from the portal without writing decrypted values to disk.",
+    icon: Cloud,
+    title: "Environment-first",
+    description: "Manage dev, staging, prod and custom environments.",
   },
   {
-    step: "03",
-    title: "Read at runtime",
-    text: "Resolve environment-aware configuration in memory from Node, edge, and CI runtimes.",
+    icon: TerminalSquare,
+    title: "Simple CLI",
+    description: "Init, pull, push — everything you need in four commands.",
+  },
+  {
+    icon: Users,
+    title: "Built for teams",
+    description: "Granular access, scopes, and least-privilege by default.",
   },
 ];
 
-const guarantees = [
-  "No generated .env files",
-  "Metadata-only vaultlier.json",
-  "Typed lib/vaultlier.ts client",
-  "Auditable reads and writes",
-];
-
-const surfaces = [
-  {
-    title: "Portal",
-    text: "Create projects, manage environments, rotate API keys, and review access history from one source of truth.",
-  },
-  {
-    title: "CLI",
-    text: "Run init, pull, push, diff, and whoami from the same workflow developers already use.",
-  },
-  {
-    title: "Runtime SDK",
-    text: "Import a small typed client that stays compatible with modern serverless and edge targets.",
-  },
-];
-
-export default function Home() {
+export default function Home(): React.JSX.Element {
   return (
-    <main className={styles.page}>
-      <section className={styles.hero} aria-labelledby="hero-title">
-        <Image
-          className={styles.heroImage}
-          src="/vaultlier-product.png"
-          alt="Vaultlier dashboard and CLI workflow preview"
-          fill
-          priority
-          sizes="100vw"
-        />
-        <div className={styles.heroOverlay} />
-        <header className={styles.nav}>
-          <Link className={styles.brand} href="/" aria-label="Vaultlier home">
-            <span className={styles.brandMark}>V</span>
-            <span>Vaultlier</span>
-          </Link>
-          <nav className={styles.navLinks} aria-label="Main navigation">
-            <Link href="#workflow">Workflow</Link>
-            <Link href="#security">Security</Link>
-            <Link href="/docs">Docs</Link>
-          </nav>
-        </header>
+    <div className="min-h-screen bg-white">
+      <SiteHeader />
+      <main className="mx-auto max-w-7xl px-6 lg:px-8">
+        <Hero />
+        <FeatureRow />
+      </main>
+      <SiteFooter />
+    </div>
+  );
+}
 
-        <div className={styles.heroContent}>
-          <p className={styles.eyebrow}>Sealed configuration for teams</p>
-          <h1 id="hero-title">Vaultlier</h1>
-          <p className={styles.heroText}>
-            Replace scattered .env files with typed runtime configuration,
-            project-scoped API keys, and a portal that remains the source of
-            truth across every environment.
-          </p>
-          <div className={styles.heroActions}>
-            <Link className={styles.primaryAction} href="/docs">
-              Read the docs
-            </Link>
-            <Link className={styles.secondaryAction} href="#workflow">
-              See workflow
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      <section className={styles.trustBand} aria-label="Vaultlier guarantees">
-        {guarantees.map((item) => (
-          <span key={item}>{item}</span>
+function SiteHeader(): React.JSX.Element {
+  return (
+    <header className="mx-auto flex max-w-7xl items-center justify-between px-6 py-6 lg:px-8">
+      <Logo />
+      <nav className="hidden items-center gap-8 md:flex">
+        {NAV.map((item) => (
+          <a
+            key={item}
+            href="#"
+            className="text-sm font-medium text-ink-700 transition-colors hover:text-ink-900"
+          >
+            {item}
+          </a>
         ))}
-      </section>
+      </nav>
+      <div className="flex items-center gap-3">
+        <a
+          href="/login"
+          className="hidden text-sm font-medium text-ink-700 hover:text-ink-900 sm:block"
+        >
+          Log in
+        </a>
+        <Button href="/dashboard" size="sm">
+          Get Started
+        </Button>
+      </div>
+    </header>
+  );
+}
 
-      <section className={styles.section} id="workflow">
-        <div className={styles.sectionHeader}>
-          <p className={styles.eyebrow}>Developer workflow</p>
-          <h2>Ship config changes without shipping secrets.</h2>
-        </div>
-        <div className={styles.workflowGrid}>
-          {workflow.map((item) => (
-            <article className={styles.workflowItem} key={item.step}>
-              <span>{item.step}</span>
-              <h3>{item.title}</h3>
-              <p>{item.text}</p>
-            </article>
-          ))}
-        </div>
-        <div className={styles.commandPanel} aria-label="Vaultlier CLI example">
-          <code>npm install vaultlier</code>
-          <code>npx vaultlier init</code>
-          <code>npx vaultlier pull --env=prod</code>
-        </div>
-      </section>
-
-      <section className={styles.surfaceBand}>
-        <div className={styles.surfaceIntro}>
-          <p className={styles.eyebrow}>Product surface</p>
-          <h2>One control plane for app configuration.</h2>
-          <p>
-            Vaultlier keeps local files limited to metadata while the portal,
-            CLI, and runtime SDK handle the rest of the configuration lifecycle.
-          </p>
-        </div>
-        <div className={styles.surfaceGrid}>
-          {surfaces.map((surface) => (
-            <article className={styles.surfaceItem} key={surface.title}>
-              <h3>{surface.title}</h3>
-              <p>{surface.text}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className={styles.securitySection} id="security">
-        <div>
-          <p className={styles.eyebrow}>Security model</p>
-          <h2>Secrets stay sealed. Access stays visible.</h2>
-        </div>
-        <p>
-          Runtime requests resolve configuration in memory, API keys stay masked
-          in terminal output, and every read or write is designed to be
-          attributable to a project, environment, and actor.
+function Hero(): React.JSX.Element {
+  return (
+    <section className="grid items-center gap-12 py-12 lg:grid-cols-2 lg:gap-16 lg:py-20">
+      <div>
+        <h1 className="text-5xl font-bold leading-[1.05] tracking-tight text-ink-900 sm:text-6xl">
+          Configuration secrets, secured.{" "}
+          <span className="text-brand-600">Develop with confidence.</span>
+        </h1>
+        <p className="mt-6 max-w-md text-lg leading-relaxed text-ink-500">
+          Vaultlier is a Node.js library and platform for managing application
+          configuration in a sealed vault — without exposing environment
+          variables locally.
         </p>
-      </section>
-    </main>
+
+        <div className="mt-8 flex flex-wrap items-center gap-3">
+          <Button href="#" size="lg">
+            <ChevronRight className="h-4 w-4" />
+            Get Started
+          </Button>
+          <Button href="#" size="lg" variant="secondary">
+            <BookOpen className="h-4 w-4" />
+            Read Docs
+          </Button>
+        </div>
+
+        <p className="mt-6 inline-flex items-center gap-2 text-sm text-ink-500">
+          <ShieldCheck className="h-4 w-4 text-brand-600" />
+          End-to-end encrypted. Audit logged. Built for teams.
+        </p>
+      </div>
+
+      <div className="relative">
+        <CodeWindow />
+        <SecretsBadge />
+      </div>
+    </section>
+  );
+}
+
+function SecretsBadge(): React.JSX.Element {
+  return (
+    <div className="mt-4 flex items-center gap-4 rounded-2xl border border-black/5 bg-white p-4 shadow-sm">
+      <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-brand-600 text-white">
+        <Lock className="h-5 w-5" />
+      </span>
+      <div>
+        <p className="text-sm font-semibold text-ink-900">
+          Secrets never touch disk.
+        </p>
+        <p className="text-sm text-ink-500">
+          Only in-memory. Always encrypted.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function FeatureRow(): React.JSX.Element {
+  return (
+    <section className="grid gap-8 border-t border-black/5 py-12 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6 lg:py-16">
+      {FEATURES.map((feature) => (
+        <FeatureCard key={feature.title} {...feature} />
+      ))}
+    </section>
   );
 }

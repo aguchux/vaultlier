@@ -63,8 +63,8 @@ export default function Home() {
             Read our docs
           </a>
         </div>
-        <Button appName="docs" className={styles.secondary}>
-          Open alert
+        <Button href="https://turborepo.dev/docs" variant="secondary">
+          Open docs
         </Button>
       </main>
       <footer className={styles.footer}>

@@ -1,27 +1,22 @@
-import { type JSX } from "react";
+import type { ReactNode } from "react";
+import { cn } from "./lib/cn";
 
+/** Generic surface card. */
 export function Card({
   className,
-  title,
   children,
-  href,
 }: {
   className?: string;
-  title: string;
-  children: React.ReactNode;
-  href: string;
-}): JSX.Element {
+  children: ReactNode;
+}): React.JSX.Element {
   return (
-    <a
-      className={className}
-      href={`${href}?utm_source=create-turbo&utm_medium=basic&utm_campaign=create-turbo"`}
-      rel="noopener noreferrer"
-      target="_blank"
+    <div
+      className={cn(
+        "rounded-2xl border border-black/5 bg-white shadow-sm",
+        className,
+      )}
     >
-      <h2>
-        {title} <span>-&gt;</span>
-      </h2>
-      <p>{children}</p>
-    </a>
+      {children}
+    </div>
   );
 }

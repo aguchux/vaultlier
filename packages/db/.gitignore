@@ -1,0 +1,10 @@
+# Prisma generated client (regenerated via `npm run db:generate`)
+generated/
+
+# Local env (DATABASE_URL with credentials)
+.env
+.env.*
+!.env.example
+
+# Turbo
+.turbo/

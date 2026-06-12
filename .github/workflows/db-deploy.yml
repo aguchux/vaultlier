@@ -1,0 +1,59 @@
+name: DB Deploy
+
+# Applies committed Prisma migrations to the production database.
+#
+# Runs `prisma migrate deploy` (apply-only: it never creates migrations and
+# never resets data). Triggers on pushes to main that touch the db package,
+# and can be run manually from the Actions tab.
+#
+# DATABASE_URL is provided by the protected `production` GitHub Environment.
+# Configure required reviewers on that environment to gate deploys.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/db/prisma/**"
+      - ".github/workflows/db-deploy.yml"
+  workflow_dispatch:
+
+# Never run two migration deploys at once.
+concurrency:
+  group: db-deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Guard — require migrations to exist
+        id: guard
+        shell: bash
+        run: |
+          if [ -d packages/db/prisma/migrations ] && \
+             [ -n "$(ls -A packages/db/prisma/migrations 2>/dev/null)" ]; then
+            echo "has_migrations=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_migrations=false" >> "$GITHUB_OUTPUT"
+            echo "No migrations directory found; nothing to deploy."
+          fi
+
+      - name: Apply migrations
+        if: steps.guard.outputs.has_migrations == 'true'
+        run: npm run db:deploy --workspace=@repo/db
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}

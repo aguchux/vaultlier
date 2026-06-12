@@ -12,6 +12,8 @@ export type VaultScope = "all" | (string & {});
 /** Schema definition for a single key, as stored in a Vaultlier config file. */
 export interface VaultKeySchema {
   type: VaultKeyType;
+  /** Human-readable metadata used in generated key-only .env files. */
+  description?: string;
   /** Environments this key applies to. Defaults to `["all"]` when omitted. */
   scopes?: VaultScope[];
   /** Default value for non-secret config. Never used for secret values. */

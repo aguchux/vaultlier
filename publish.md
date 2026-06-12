@@ -87,6 +87,31 @@ published from public GitHub repositories.
 
 ---
 
+## Database migrations (`@repo/db`)
+
+Migrations are applied by `.github/workflows/db-deploy.yml`, which runs
+`prisma migrate deploy` (apply-only — never creates or resets). It triggers on
+pushes to `main` that touch `packages/db/prisma/**`, and via manual dispatch.
+
+### One-time setup
+
+1. GitHub repo -> Settings -> Environments -> create **`production`**.
+   - Add a secret **`DATABASE_URL`** (the production Postgres connection string).
+   - Optional: add required reviewers / a wait timer to gate deploys.
+2. Author migrations locally against a dev database, then commit them:
+
+   ```powershell
+   # set DATABASE_URL in packages/db/.env first
+   npm run db:migrate --workspace=@repo/db   # creates packages/db/prisma/migrations/*
+   git add packages/db/prisma/migrations
+   git commit -m "db: <migration name>"
+   git push   # main push triggers db-deploy.yml -> migrate deploy
+   ```
+
+The workflow no-ops until at least one migration is committed.
+
+---
+
 ## Local sanity checks
 
 ```powershell

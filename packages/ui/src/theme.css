@@ -1,0 +1,42 @@
+/**
+ * Vaultlier design tokens (Tailwind v4 CSS-first theme).
+ *
+ * Imported by every app's stylesheet so the whole product shares one palette
+ * and type scale. Brand greens are sampled from the marketing design.
+ */
+@theme {
+  /* Brand green scale */
+  --color-brand-50: #ecfdf3;
+  --color-brand-100: #d1fadf;
+  --color-brand-200: #a6f4c5;
+  --color-brand-300: #6ce9a6;
+  --color-brand-400: #32d583;
+  --color-brand-500: #12b76a;
+  --color-brand-600: #16794c;
+  --color-brand-700: #15633f;
+  --color-brand-800: #134e34;
+  --color-brand-900: #11422c;
+
+  /* Neutral ink */
+  --color-ink-50: #f4f6f5;
+  --color-ink-100: #e8ecea;
+  --color-ink-200: #d6ddd9;
+  --color-ink-400: #8a978f;
+  --color-ink-500: #5b6b61;
+  --color-ink-700: #2b3a31;
+  --color-ink-800: #18211c;
+  --color-ink-900: #0b0f0c;
+
+  /* Code-window surface */
+  --color-surface-code: #11211a;
+  --color-surface-codeHeader: #0c1a14;
+
+  --font-sans:
+    var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, sans-serif;
+  --font-mono:
+    var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --radius-xl: 0.875rem;
+  --radius-2xl: 1.25rem;
+}

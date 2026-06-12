@@ -24,6 +24,21 @@ describe("validateConfig", () => {
     ).toBe(true);
   });
 
+  it("accepts key descriptions as metadata", () => {
+    expect(
+      validateConfig({
+        ...valid,
+        keys: {
+          DATABASE_URL: {
+            type: "string",
+            scopes: ["all"],
+            description: "Database connection string",
+          },
+        },
+      }).valid,
+    ).toBe(true);
+  });
+
   it("rejects a non-string $schema reference", () => {
     const { valid: ok, errors } = validateConfig({
       $schema: 42,
@@ -51,6 +66,15 @@ describe("validateConfig", () => {
     });
     expect(ok).toBe(false);
     expect(errors.join()).toMatch(/unsupported type/);
+  });
+
+  it("rejects non-string key descriptions", () => {
+    const { valid: ok, errors } = validateConfig({
+      ...valid,
+      keys: { BAD: { type: "string", description: 42 } },
+    });
+    expect(ok).toBe(false);
+    expect(errors.join()).toMatch(/description/);
   });
 });
 
