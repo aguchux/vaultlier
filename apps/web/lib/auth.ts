@@ -30,6 +30,50 @@ const nextAuth = NextAuth({
         metadata: { email: user.email },
       });
     },
+    async signIn({ user }) {
+      if (!user.id || !user.email) return;
+      const email = user.email.toLowerCase();
+      const invitations = await prisma.organizationInvitation.findMany({
+        where: {
+          email,
+          acceptedAt: null,
+          expiresAt: { gt: new Date() },
+        },
+      });
+      if (invitations.length === 0) return;
+
+      await prisma.$transaction(async (tx) => {
+        for (const invitation of invitations) {
+          await tx.membership.upsert({
+            where: {
+              userId_organizationId: {
+                userId: user.id!,
+                organizationId: invitation.organizationId,
+              },
+            },
+            update: {},
+            create: {
+              userId: user.id!,
+              organizationId: invitation.organizationId,
+              role: invitation.role,
+            },
+          });
+          await tx.organizationInvitation.update({
+            where: { id: invitation.id },
+            data: { acceptedAt: new Date() },
+          });
+          await logAudit(
+            {
+              action: "MEMBER_JOINED",
+              userId: user.id,
+              organizationId: invitation.organizationId,
+              metadata: { email, role: invitation.role },
+            },
+            tx,
+          );
+        }
+      });
+    },
   },
 });
 

@@ -17,6 +17,8 @@ npx vaultlier pull --env=prod
 
 `init` writes two metadata-only artifacts - `vaultlier.json` (schema) and `lib/vaultlier.ts` (generated typed client). Existing projects may also use `vaultlier.config.json` for schema metadata.
 
+`pull`, `push`, and `diff` sync schema **metadata** (key names, types, scopes, environments - never values) with the Vaultlier portal using your API key. The portal base URL can be overridden with `--api-url=<url>` or `VAULTLIER_API_URL` for self-hosted deployments. Without an API key, `pull` falls back to regenerating from local metadata.
+
 Generated config includes a `$schema` reference to `https://schema.vaultlier.com/v2/vaultlier.schema.json` for editor validation. **No secret values are written to disk.**
 
 ## Inspect your config locally
@@ -26,10 +28,12 @@ npx vaultlier dev   # opens a local UI on http://127.0.0.1:9090
 ```
 
 `vaultlier dev` starts a read-only dashboard, bound to loopback, that shows your
-project's **metadata only** - key names, types, scopes, environments, and a
-masked API key. Decrypted secret values are never read, stored, or displayed,
-and nothing leaves your machine. It's a transparency tool so you can see exactly
-what Vaultlier keeps about your project. Use `--port=<n>` to change the port.
+project's metadata - key names, types, scopes, environments, and a masked API
+key. When an API key is available (via `--api-key`, `VAULTLIER_API_KEY`, or the
+local credential cache), it also fetches and displays values for the **dev
+environment only**; staging and prod values are never read or displayed, and
+nothing is written to disk. Without an API key the UI shows a warning and falls
+back to metadata only. Use `--port=<n>` to change the port.
 
 ## Runtime usage
 

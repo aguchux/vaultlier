@@ -1,3 +1,4 @@
+import { prisma } from "@repo/db";
 import { Button } from "@repo/ui/button";
 import { Card } from "@repo/ui/card";
 import {
@@ -5,7 +6,13 @@ import {
   requireProjectAccess,
   requireUser,
 } from "../../../../lib/tenancy";
-import { deleteProject, renameProject } from "../../actions";
+import {
+  createApiKey,
+  deleteProject,
+  renameProject,
+  revokeApiKey,
+} from "../../actions";
+import { ApiKeysPanel } from "./api-keys-panel";
 import { DestroyProjectForm } from "./destroy-form";
 
 export default async function ProjectSettingsPage({
@@ -17,6 +24,11 @@ export default async function ProjectSettingsPage({
   const user = await requireUser();
   const { project, role } = await requireProjectAccess(user.id, projectId);
   const canManage = canManageProject(role);
+
+  const apiKeys = await prisma.apiKey.findMany({
+    where: { projectId: project.id, revokedAt: null },
+    orderBy: { createdAt: "desc" },
+  });
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -69,6 +81,22 @@ export default async function ProjectSettingsPage({
             </dd>
           </div>
         </dl>
+      </Card>
+
+      <Card className="p-6">
+        <ApiKeysPanel
+          keys={apiKeys.map((key) => ({
+            id: key.id,
+            name: key.name,
+            prefix: key.prefix,
+            role: key.role,
+            createdAt: key.createdAt.toISOString(),
+            lastUsedAt: key.lastUsedAt?.toISOString() ?? null,
+          }))}
+          canManage={canManage}
+          createAction={createApiKey.bind(null, project.id)}
+          revokeAction={revokeApiKey.bind(null, project.id)}
+        />
       </Card>
 
       <Card className="border-red-200 p-6">

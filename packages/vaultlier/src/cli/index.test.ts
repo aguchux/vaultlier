@@ -34,6 +34,43 @@ afterEach(async () => {
   );
 });
 
+/** Build a fake portal transport. Records requests; replies per handler. */
+function fakePortal(
+  handler: (url: string, init?: { method?: string; body?: string }) => {
+    status: number;
+    body: unknown;
+  },
+) {
+  const requests: { url: string; method: string; body?: string }[] = [];
+  const fetchImpl = async (
+    url: string,
+    init?: { method?: string; headers?: Record<string, string>; body?: string },
+  ) => {
+    requests.push({ url, method: init?.method ?? "GET", body: init?.body });
+    const { status, body } = handler(url, init);
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      headers: {
+        get: (name: string) =>
+          name.toLowerCase() === "x-request-id" ? "req_test_1" : null,
+      },
+      json: async () => body,
+    };
+  };
+  return { fetchImpl, requests };
+}
+
+const PORTAL_SCHEMA = {
+  projectId: "prj_checkout_api",
+  version: 3,
+  environments: ["dev", "prod"],
+  keys: {
+    DATABASE_URL: { type: "string", scopes: ["all"] },
+    FEATURE_NEW_FLOW: { type: "boolean", scopes: ["prod"] },
+  },
+};
+
 describe("parseArgs", () => {
   it("parses command and --env flag", () => {
     const r = parseArgs(["pull", "--env=prod"]);
@@ -489,7 +526,7 @@ describe("run", () => {
     expect(config).not.toContain("secret-url");
   });
 
-  it("push updates local schema from env keys before failing closed on portal sync", async () => {
+  it("push updates local schema from env keys before failing on missing API key", async () => {
     const cwd = await makeTempDir();
     const stderr = capture();
     await writeFile(
@@ -514,12 +551,150 @@ describe("run", () => {
       stderr: stderr.stream,
     });
 
-    expect(code).toBe(ExitCode.GenericError);
-    expect(stderr.read()).toContain("portal API sync is not available");
+    expect(code).toBe(ExitCode.AuthFailed);
+    expect(stderr.read()).toContain("missing API key");
 
     const config = await readFile(join(cwd, "vaultlier.json"), "utf8");
     expect(config).toContain("DATABASE_URL");
     expect(config).not.toContain("secret-url");
+  });
+
+  it("push syncs the schema to the portal and adopts the returned version", async () => {
+    const cwd = await makeTempDir();
+    const stdout = capture();
+    await writeFile(
+      join(cwd, "vaultlier.json"),
+      JSON.stringify(
+        {
+          projectId: "prj_checkout_api",
+          version: 2,
+          environments: ["dev", "prod"],
+          keys: { DATABASE_URL: { type: "string", scopes: ["all"] } },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    const portal = fakePortal(() => ({ status: 200, body: PORTAL_SCHEMA }));
+    const code = await run(
+      ["push", "--api-key=vlt_test_12345678", "--api-url=https://portal.test"],
+      { cwd, stdout: stdout.stream, fetch: portal.fetchImpl },
+    );
+
+    expect(code).toBe(ExitCode.Success);
+    expect(stdout.read()).toContain("portal now at v3");
+    expect(portal.requests).toHaveLength(1);
+    expect(portal.requests[0]!.url).toBe(
+      "https://portal.test/v1/projects/prj_checkout_api/schema",
+    );
+    expect(portal.requests[0]!.method).toBe("PUT");
+    // Schema metadata only — the push body must never contain values.
+    expect(portal.requests[0]!.body).toContain("DATABASE_URL");
+    expect(portal.requests[0]!.body).not.toContain("vlt_test_12345678");
+
+    const config = JSON.parse(
+      await readFile(join(cwd, "vaultlier.json"), "utf8"),
+    ) as { version: number; keys: Record<string, unknown> };
+    expect(config.version).toBe(3);
+    expect(config.keys.FEATURE_NEW_FLOW).toBeDefined();
+  });
+
+  it("push maps portal conflicts and auth failures to exit codes", async () => {
+    const cwd = await makeTempDir();
+    await writeFile(
+      join(cwd, "vaultlier.json"),
+      JSON.stringify(
+        {
+          projectId: "prj_checkout_api",
+          version: 1,
+          environments: ["dev"],
+          keys: {},
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    const conflict = fakePortal(() => ({
+      status: 409,
+      body: { code: "schema/version_conflict", message: "behind the portal" },
+    }));
+    const conflictStderr = capture();
+    expect(
+      await run(["push", "--api-key=vlt_test_12345678"], {
+        cwd,
+        stderr: conflictStderr.stream,
+        fetch: conflict.fetchImpl,
+      }),
+    ).toBe(ExitCode.Conflict);
+    expect(conflictStderr.read()).toContain("behind the portal");
+
+    const denied = fakePortal(() => ({
+      status: 401,
+      body: { code: "auth/invalid_api_key", message: "Invalid API key." },
+    }));
+    expect(
+      await run(["push", "--api-key=vlt_test_12345678"], {
+        cwd,
+        stderr: capture().stream,
+        fetch: denied.fetchImpl,
+      }),
+    ).toBe(ExitCode.AuthFailed);
+
+    const offline = fakePortal(() => {
+      throw new Error("ECONNREFUSED");
+    });
+    const offlineStderr = capture();
+    expect(
+      await run(["push", "--api-key=vlt_test_12345678"], {
+        cwd,
+        stderr: offlineStderr.stream,
+        fetch: offline.fetchImpl,
+      }),
+    ).toBe(ExitCode.GenericError);
+    expect(offlineStderr.read()).toContain("could not reach");
+  });
+
+  it("pull adopts the portal schema and regenerates the client", async () => {
+    const cwd = await makeTempDir();
+    await writeFile(
+      join(cwd, "vaultlier.json"),
+      JSON.stringify(
+        {
+          projectId: "prj_checkout_api",
+          version: 1,
+          environments: ["dev"],
+          keys: {},
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    const portal = fakePortal(() => ({ status: 200, body: PORTAL_SCHEMA }));
+    const stdout = capture();
+    const code = await run(["pull", "--api-key=vlt_test_12345678"], {
+      cwd,
+      stdout: stdout.stream,
+      fetch: portal.fetchImpl,
+    });
+
+    expect(code).toBe(ExitCode.Success);
+    expect(stdout.read()).toContain("pulled portal schema v3");
+    expect(portal.requests[0]!.method).toBe("GET");
+
+    const config = JSON.parse(
+      await readFile(join(cwd, "vaultlier.json"), "utf8"),
+    ) as { version: number; environments: string[] };
+    expect(config.version).toBe(3);
+    expect(config.environments).toEqual(["dev", "prod"]);
+
+    const client = await readFile(join(cwd, "lib", "vaultlier.ts"), "utf8");
+    expect(client).toContain("FEATURE_NEW_FLOW: boolean;");
   });
 
   it("pull accepts vaultlier.config.json as an alternate config file", async () => {
@@ -567,20 +742,109 @@ describe("run", () => {
     expect(stdout.read()).not.toContain("vlt_test_12345678");
   });
 
-  it("diff validates local schema but fails closed until portal sync exists", async () => {
+  it("diff reports differences between local and portal schemas", async () => {
     const cwd = await makeTempDir();
-    const stderr = capture();
+    await writeFile(
+      join(cwd, "vaultlier.json"),
+      JSON.stringify(
+        {
+          projectId: "prj_checkout_api",
+          version: 2,
+          environments: ["dev", "staging"],
+          keys: {
+            DATABASE_URL: { type: "string", scopes: ["all"] },
+            LOCAL_ONLY: { type: "string" },
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    const portal = fakePortal(() => ({ status: 200, body: PORTAL_SCHEMA }));
+    const stdout = capture();
+    const code = await run(["diff", "--api-key=vlt_test_12345678"], {
+      cwd,
+      stdout: stdout.stream,
+      fetch: portal.fetchImpl,
+    });
+
+    expect(code).toBe(ExitCode.Success);
+    const output = stdout.read();
+    expect(output).toContain("local v2 vs portal v3");
+    expect(output).toContain("+ LOCAL_ONLY (local only");
+    expect(output).toContain("- FEATURE_NEW_FLOW (portal only");
+    expect(output).toContain("+ env staging (local only");
+    expect(output).toContain("- env prod (portal only");
+  });
+
+  it("diff reports an in-sync schema", async () => {
+    const cwd = await makeTempDir();
+    await writeFile(
+      join(cwd, "vaultlier.json"),
+      JSON.stringify(
+        {
+          projectId: "prj_checkout_api",
+          version: 3,
+          environments: ["dev", "prod"],
+          keys: {
+            DATABASE_URL: { type: "string", scopes: ["all"] },
+            FEATURE_NEW_FLOW: { type: "boolean", scopes: ["prod"] },
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    const portal = fakePortal(() => ({ status: 200, body: PORTAL_SCHEMA }));
+    const stdout = capture();
+    const code = await run(["diff", "--api-key=vlt_test_12345678"], {
+      cwd,
+      stdout: stdout.stream,
+      fetch: portal.fetchImpl,
+    });
+
+    expect(code).toBe(ExitCode.Success);
+    expect(stdout.read()).toContain("schema in sync with portal (v3)");
+  });
+
+  it("diff uses the API key cached by init", async () => {
+    const cwd = await makeTempDir();
 
     await run(
       ["init", "--project-id=prj_checkout_api", "--api-key=vlt_test_12345678"],
       { cwd, stdout: capture().stream },
     );
-    const code = await run(["diff", "--env=prod"], {
+
+    let sawAuth: string | undefined;
+    const fetchImpl = async (
+      url: string,
+      init?: { headers?: Record<string, string> },
+    ) => {
+      sawAuth = init?.headers?.authorization;
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => ({
+          projectId: "prj_checkout_api",
+          version: 1,
+          environments: ["dev", "staging", "prod"],
+          keys: {},
+        }),
+      };
+    };
+
+    const code = await run(["diff"], {
       cwd,
-      stderr: stderr.stream,
+      stdout: capture().stream,
+      fetch: fetchImpl,
     });
 
-    expect(code).toBe(ExitCode.GenericError);
-    expect(stderr.read()).toContain("portal API sync is not available");
+    expect(code).toBe(ExitCode.Success);
+    expect(sawAuth).toBe("Bearer vlt_test_12345678");
   });
 });

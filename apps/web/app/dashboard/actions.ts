@@ -10,6 +10,7 @@ import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
+import { generateApiKey, hashApiKey } from "../../lib/api";
 import { logAudit } from "../../lib/audit";
 import {
   canManageProject,
@@ -93,6 +94,95 @@ export async function renameProject(
 
   revalidatePath("/dashboard");
   revalidatePath(`/dashboard/${projectId}`);
+}
+
+export interface CreateApiKeyState {
+  rawKey?: string;
+  name?: string;
+  error?: string;
+}
+
+/**
+ * Mint a project API key for the CLI/runtime. The raw `vlt_` key is returned
+ * to the caller exactly once; only its SHA-256 hash is stored.
+ */
+export async function createApiKey(
+  projectId: string,
+  _prev: CreateApiKeyState | null,
+  formData: FormData,
+): Promise<CreateApiKeyState> {
+  const user = await requireUser();
+  const { project, role } = await requireProjectAccess(user.id, projectId);
+  if (!canManageProject(role)) {
+    return { error: "Only owners and admins can create API keys." };
+  }
+
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return { error: "Key name is required." };
+  const keyRole = formData.get("role") === "MEMBER" ? "MEMBER" : "VIEWER";
+
+  const { rawKey, prefix } = generateApiKey();
+  await prisma.$transaction(async (tx) => {
+    const created = await tx.apiKey.create({
+      data: {
+        projectId,
+        name,
+        prefix,
+        hashedKey: hashApiKey(rawKey),
+        role: keyRole,
+      },
+    });
+    await logAudit(
+      {
+        action: "API_KEY_CREATED",
+        userId: user.id,
+        organizationId: project.organizationId,
+        projectId,
+        metadata: { apiKeyId: created.id, name, role: keyRole },
+      },
+      tx,
+    );
+  });
+
+  revalidatePath(`/dashboard/${projectId}/settings`);
+  return { rawKey, name };
+}
+
+export async function revokeApiKey(
+  projectId: string,
+  formData: FormData,
+): Promise<void> {
+  const user = await requireUser();
+  const { project, role } = await requireProjectAccess(user.id, projectId);
+  if (!canManageProject(role)) {
+    throw new Error("Only owners and admins can revoke API keys.");
+  }
+
+  const apiKeyId = String(formData.get("apiKeyId") ?? "");
+  const apiKey = await prisma.apiKey.findFirst({
+    where: { id: apiKeyId, projectId, revokedAt: null },
+  });
+  if (!apiKey) throw new Error("API key not found.");
+
+  await prisma.$transaction(async (tx) => {
+    await tx.apiKey.update({
+      where: { id: apiKey.id },
+      data: { revokedAt: new Date() },
+    });
+    await logAudit(
+      {
+        action: "API_KEY_REVOKED",
+        userId: user.id,
+        organizationId: project.organizationId,
+        projectId,
+        apiKeyId: apiKey.id,
+        metadata: { name: apiKey.name, prefix: apiKey.prefix },
+      },
+      tx,
+    );
+  });
+
+  revalidatePath(`/dashboard/${projectId}/settings`);
 }
 
 export async function deleteProject(projectId: string): Promise<void> {

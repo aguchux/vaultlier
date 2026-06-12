@@ -43,6 +43,40 @@ describe("buildSnapshot", () => {
     });
     expect(snap.keys[0]!.scopes).toEqual(["all"]);
   });
+
+  it("defaults remote and remoteWarning to null", () => {
+    const snap = buildSnapshot({
+      config,
+      configFile: "vaultlier.json",
+      maskedApiKey: null,
+    });
+    expect(snap.remote).toBeNull();
+    expect(snap.remoteWarning).toBeNull();
+  });
+
+  it("stringifies non-string remote values for display", () => {
+    const snap = buildSnapshot({
+      config,
+      configFile: "vaultlier.json",
+      maskedApiKey: null,
+      remote: {
+        environment: "dev",
+        values: {
+          DATABASE_URL: "postgres://localhost/dev",
+          FEATURE_NEW_FLOW: true,
+          RETRIES: 3,
+        },
+      },
+    });
+    expect(snap.remote).toEqual({
+      environment: "dev",
+      values: {
+        DATABASE_URL: "postgres://localhost/dev",
+        FEATURE_NEW_FLOW: "true",
+        RETRIES: "3",
+      },
+    });
+  });
 });
 
 describe("renderHtml", () => {
@@ -76,6 +110,61 @@ describe("renderHtml", () => {
 
   it("never embeds an unmasked api key", () => {
     expect(renderHtml(snap)).not.toContain("vlt_test_12345678");
+  });
+
+  it("omits the value column when no remote values were fetched", () => {
+    const html = renderHtml(snap);
+    expect(html).not.toContain("Value (");
+  });
+
+  it("renders dev values in a dedicated column when fetched", () => {
+    const html = renderHtml(
+      buildSnapshot({
+        config,
+        configFile: "vaultlier.json",
+        maskedApiKey: "vlt_test…78",
+        remote: {
+          environment: "dev",
+          values: { DATABASE_URL: "postgres://localhost/dev" },
+        },
+      }),
+    );
+    expect(html).toContain("Value (dev)");
+    expect(html).toContain("postgres://localhost/dev");
+    expect(html).toContain("dev values only — other envs stay sealed");
+  });
+
+  it("escapes HTML in remote values", () => {
+    const html = renderHtml(
+      buildSnapshot({
+        config,
+        configFile: "vaultlier.json",
+        maskedApiKey: null,
+        remote: {
+          environment: "dev",
+          values: { DATABASE_URL: "<img onerror=alert(1)>" },
+        },
+      }),
+    );
+    expect(html).not.toContain("<img onerror=alert(1)>");
+    expect(html).toContain("&lt;img onerror=alert(1)&gt;");
+  });
+
+  it("renders a warning banner when the API key is missing", () => {
+    const html = renderHtml(
+      buildSnapshot({
+        config,
+        configFile: "vaultlier.json",
+        maskedApiKey: null,
+        remoteWarning:
+          "VAULTLIER_API_KEY is not set — remote values are unavailable. Set VAULTLIER_API_KEY to access remote environments.",
+      }),
+    );
+    expect(html).toContain('class="warning"');
+    expect(html).toContain("VAULTLIER_API_KEY is not set");
+    // No remote values, so the metadata-only guarantees still hold.
+    expect(html).toContain("secrets stay sealed");
+    expect(html).not.toContain("Value (");
   });
 });
 

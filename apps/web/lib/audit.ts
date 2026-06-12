@@ -12,6 +12,7 @@ type Db = PrismaClient | Prisma.TransactionClient;
 export interface AuditEntry {
   action: AuditAction;
   userId?: string | null;
+  apiKeyId?: string | null;
   organizationId?: string | null;
   projectId?: string | null;
   environment?: string | null;

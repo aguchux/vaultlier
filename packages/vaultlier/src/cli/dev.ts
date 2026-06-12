@@ -6,9 +6,11 @@
  * users can see exactly what metadata is stored locally, on their own machine,
  * with nothing leaving it.
  *
- * It shows METADATA ONLY — key names, types, scopes, environments, projectId,
- * and a MASKED apiKey. Decrypted secret values are never read or displayed.
- * The server binds to loopback (127.0.0.1) so it is not exposed to the network.
+ * It shows METADATA — key names, types, scopes, environments, projectId, and
+ * a MASKED apiKey. When an API key is available it additionally fetches and
+ * displays values for the local "dev" environment ONLY; staging/prod values
+ * are never read or displayed, and nothing is written to disk. The server
+ * binds to loopback (127.0.0.1) so it is not exposed to the network.
  */
 
 import { createServer, type Server } from "node:http";
@@ -18,7 +20,10 @@ import type { VaultlierConfig } from "../schema/types.js";
 export const DEV_PORT = 9090;
 export const DEV_HOST = "127.0.0.1";
 
-/** Read-only snapshot the UI renders. Never contains secret values. */
+/**
+ * Read-only snapshot the UI renders. May carry dev-environment values when
+ * they were fetched from the portal; never staging/prod values.
+ */
 export interface DevSnapshot {
   projectId: string;
   version: number;
@@ -32,6 +37,10 @@ export interface DevSnapshot {
   /** Masked apiKey for display, or null when no credential cache exists. */
   maskedApiKey: string | null;
   configFile: string;
+  /** Remote values for the "dev" environment, or null when unavailable. */
+  remote: { environment: string; values: Record<string, string> } | null;
+  /** Notice shown when remote values could not be loaded (e.g. no API key). */
+  remoteWarning: string | null;
 }
 
 /** Build the read-only snapshot from config + masked credentials. */
@@ -39,6 +48,8 @@ export function buildSnapshot(params: {
   config: VaultlierConfig;
   configFile: string;
   maskedApiKey: string | null;
+  remote?: { environment: string; values: Record<string, unknown> } | null;
+  remoteWarning?: string | null;
 }): DevSnapshot {
   const { config } = params;
   return {
@@ -53,6 +64,18 @@ export function buildSnapshot(params: {
     })),
     maskedApiKey: params.maskedApiKey,
     configFile: params.configFile,
+    remote: params.remote
+      ? {
+          environment: params.remote.environment,
+          values: Object.fromEntries(
+            Object.entries(params.remote.values).map(([name, value]) => [
+              name,
+              typeof value === "string" ? value : JSON.stringify(value),
+            ]),
+          ),
+        }
+      : null,
+    remoteWarning: params.remoteWarning ?? null,
   };
 }
 
@@ -133,23 +156,46 @@ function escapeHtml(value: string): string {
 
 /** Render the self-contained dashboard. No external assets, no inline secrets. */
 export function renderHtml(snapshot: DevSnapshot): string {
+  const remote = snapshot.remote;
+  const columns = remote ? 5 : 4;
+  const valueHeader = remote
+    ? `<th>Value (${escapeHtml(remote.environment)})</th>`
+    : "";
   const rows =
     snapshot.keys.length === 0
-      ? `<tr><td colspan="4" class="empty">No keys defined yet. Add keys in the portal, then run <code>vaultlier pull</code>.</td></tr>`
+      ? `<tr><td colspan="${columns}" class="empty">No keys defined yet. Add keys in the portal, then run <code>vaultlier pull</code>.</td></tr>`
       : snapshot.keys
           .map((key) => {
             const def =
               key.default === undefined
                 ? "<span class=\"muted\">—</span>"
                 : `<code>${escapeHtml(String(key.default))}</code>`;
+            let valueCell = "";
+            if (remote) {
+              const value = remote.values[key.name];
+              valueCell =
+                value === undefined
+                  ? `<td><span class="muted">—</span></td>`
+                  : `<td><code>${escapeHtml(value)}</code></td>`;
+            }
             return `<tr>
               <td><code>${escapeHtml(key.name)}</code></td>
               <td><span class="type type-${escapeHtml(key.type)}">${escapeHtml(key.type)}</span></td>
               <td>${key.scopes.map((s) => `<span class="scope">${escapeHtml(s)}</span>`).join(" ")}</td>
               <td>${def}</td>
+              ${valueCell}
             </tr>`;
           })
           .join("\n");
+
+  const warningBanner = snapshot.remoteWarning
+    ? `<div class="warning">⚠️ ${escapeHtml(snapshot.remoteWarning)}</div>`
+    : "";
+
+  const remoteFooter = remote
+    ? ` Values shown are for the <b>${escapeHtml(remote.environment)}</b> environment only,
+    fetched from the portal and held in memory — other environments stay sealed.`
+    : " This page shows <b>metadata only</b> — decrypted secret values are never read, stored, or displayed here, and nothing leaves your computer.";
 
   const envChips = snapshot.environments
     .map((env) => `<span class="env">${escapeHtml(env)}</span>`)
@@ -201,12 +247,17 @@ export function renderHtml(snapshot: DevSnapshot): string {
   .type-number { color: #ea580c; } .type-json { color: #0d9488; }
   .muted { color: #a1a1aa; } .empty { text-align: center; color: #71717a; padding: 1.5rem; }
   footer { margin-top: 1.5rem; font-size: .8rem; color: #71717a; }
+  .warning {
+    border: 1px solid #f59e0b66; background: #f59e0b1a; color: #b45309;
+    border-radius: 12px; padding: .75rem 1rem; margin-bottom: 1.5rem; font-size: .9rem;
+  }
+  @media (prefers-color-scheme: dark) { .warning { color: #fbbf24; } }
 </style>
 </head>
 <body>
   <header>
     <h1>Vaultlier <span class="muted">/ ${escapeHtml(snapshot.projectId)}</span></h1>
-    <span class="badge sealed">🔒 secrets stay sealed</span>
+    <span class="badge sealed">${remote ? `🔒 ${escapeHtml(remote.environment)} values only — other envs stay sealed` : "🔒 secrets stay sealed"}</span>
   </header>
 
   <div class="meta">
@@ -216,10 +267,12 @@ export function renderHtml(snapshot: DevSnapshot): string {
     <span><b>API key:</b> <code>${escapeHtml(snapshot.maskedApiKey ?? "(not cached)")}</code></span>
   </div>
 
+  ${warningBanner}
+
   <div class="card">
     <table>
       <thead>
-        <tr><th>Key</th><th>Type</th><th>Scopes</th><th>Default</th></tr>
+        <tr><th>Key</th><th>Type</th><th>Scopes</th><th>Default</th>${valueHeader}</tr>
       </thead>
       <tbody>
 ${rows}
@@ -229,8 +282,7 @@ ${rows}
 
   <footer>
     This view reads <code>${escapeHtml(snapshot.configFile)}</code> on your machine and shows
-    <b>metadata only</b> — key names, types, and scopes. Decrypted secret values are never read,
-    stored, or displayed here, and nothing leaves your computer.
+    key names, types, and scopes.${remoteFooter}
   </footer>
 </body>
 </html>

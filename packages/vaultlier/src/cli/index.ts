@@ -19,10 +19,26 @@ import {
   ExitCode,
   GENERATED_FILES,
 } from "../schema/types.js";
-import type { VaultlierConfig } from "../schema/types.js";
+import type { VaultKeySchema, VaultlierConfig } from "../schema/types.js";
 import { looksLikeApiKey, maskSecret } from "../schema/security.js";
 import { parseConfig, validateConfig } from "../schema/validate.js";
 import { DEV_HOST, DEV_PORT, buildSnapshot, startDevServer } from "./dev.js";
+import {
+  API_URL_ENV,
+  PortalApiError,
+  diffSchemas,
+  fetchEnvironmentConfig,
+  fetchPortalSchema,
+  isDiffEmpty,
+  pushPortalSchema,
+  resolveApiUrl,
+} from "./portal.js";
+import type {
+  FetchLike,
+  PortalClientOptions,
+  PortalSchema,
+  SchemaDiff,
+} from "./portal.js";
 import {
   discoverEnvMetadata,
   generateEnvFile,
@@ -52,6 +68,8 @@ export interface RunOptions {
   stdout?: Pick<NodeJS.WritableStream, "write">;
   stderr?: Pick<NodeJS.WritableStream, "write">;
   installer?: Installer;
+  /** Transport for portal sync. Tests inject a fake; defaults to global fetch. */
+  fetch?: FetchLike;
 }
 
 interface CliContext {
@@ -61,6 +79,7 @@ interface CliContext {
   stdout: Pick<NodeJS.WritableStream, "write">;
   stderr: Pick<NodeJS.WritableStream, "write">;
   installer: Installer;
+  fetch?: FetchLike;
 }
 
 interface CredentialCache {
@@ -82,6 +101,8 @@ type Installer = (params: {
 const VALUE_FLAGS = new Set([
   "api-key",
   "apiKey",
+  "api-url",
+  "apiUrl",
   "env",
   "environments",
   "host",
@@ -143,16 +164,17 @@ Usage:
 
 Commands:
   init                 Authenticate and write vaultlier.json + lib/vaultlier.ts
-  pull --env=<name>    Fetch schema metadata and regenerate the typed client
+  pull --env=<name>    Pull portal schema metadata and regenerate the typed client
   push --env=<name>    Push local schema additions to the portal
   diff --env=<name>    Show schema differences between local and portal
   whoami               Print the authenticated project context
-  dev                  Start the local config UI (metadata only) on port ${DEV_PORT}
+  dev                  Start the local config UI (shows remote dev values when an API key is set) on port ${DEV_PORT}
   scan                 Detect env keys and optionally update schema metadata
 
 Options:
   --project-id=<id>    Project ID used by init
   --api-key=<key>      API key used by init; cached locally, never in generated files
+  --api-url=<url>      Portal API base URL (default ${API_URL_ENV} or hosted API)
   --env=<name|all>     Target environment
   --environments=a,b   Initial environment list for init
   --port=<n>           Port for vaultlier dev (default ${DEV_PORT})
@@ -180,6 +202,7 @@ export async function run(
     stdout: options.stdout ?? process.stdout,
     stderr: options.stderr ?? process.stderr,
     installer: options.installer ?? installPackage,
+    fetch: options.fetch,
   };
 
   if (flags.generate === true && (!command || command === "generate")) {
@@ -297,11 +320,33 @@ async function pullCommand(
   flags: Record<string, string | boolean>,
   ctx: CliContext,
 ): Promise<ExitCode> {
-  const config = await readLocalConfig(ctx);
+  let config = await readLocalConfig(ctx);
   if (!config) return ExitCode.SchemaInvalid;
 
   const envResult = validateEnvFlag(flags, config, ctx);
   if (envResult !== ExitCode.Success) return envResult;
+
+  // Sync from the portal when credentials are available; otherwise fall back
+  // to regenerating from local metadata so offline workflows keep working.
+  const apiKey = await resolveCliApiKey(flags, ctx);
+  if (apiKey) {
+    let portal: PortalSchema;
+    try {
+      portal = await fetchPortalSchema(
+        portalOptions(flags, ctx, apiKey),
+        config.projectId,
+      );
+    } catch (err) {
+      return reportPortalError("pull", err, ctx);
+    }
+    config = applyPortalSchema(config, portal);
+    const configPath = await findConfigPath(ctx.cwd);
+    if (!configPath) return ExitCode.SchemaInvalid;
+    await writeJson(configPath.path, config);
+    ctx.stdout.write(`pulled portal schema v${portal.version}\n`);
+  } else {
+    ctx.stdout.write("no API key found - using local schema metadata\n");
+  }
 
   await writeGeneratedClient(ctx.cwd, config);
   if (flags["generate-env"] === true) {
@@ -341,10 +386,40 @@ async function devCommand(
   const host = typeof flags.host === "string" ? flags.host : DEV_HOST;
 
   const credentials = await readCredentialCache(ctx.cwd);
+
+  // Fetch values for the local "dev" environment only — never staging/prod.
+  const remoteEnv = "dev";
+  let remote: { environment: string; values: Record<string, unknown> } | null =
+    null;
+  let remoteWarning: string | null = null;
+  const apiKey = await resolveCliApiKey(flags, ctx);
+  if (!apiKey) {
+    remoteWarning = `${API_KEY_ENV} is not set — remote values are unavailable. Set ${API_KEY_ENV} to access remote environments.`;
+  } else if (!config.environments.includes(remoteEnv)) {
+    remoteWarning = `This project has no "${remoteEnv}" environment — remote values were not fetched.`;
+  } else {
+    try {
+      const values = await fetchEnvironmentConfig(
+        portalOptions(flags, ctx, apiKey),
+        config.projectId,
+        remoteEnv,
+      );
+      remote = { environment: remoteEnv, values };
+    } catch (err) {
+      const message =
+        err instanceof PortalApiError || err instanceof Error
+          ? err.message
+          : String(err);
+      remoteWarning = `Could not fetch remote "${remoteEnv}" values: ${message}`;
+    }
+  }
+
   const snapshot = buildSnapshot({
     config,
     configFile: configPath.name,
     maskedApiKey: credentials ? maskApiKey(credentials.apiKey) : null,
+    remote,
+    remoteWarning,
   });
 
   let handle;
@@ -363,7 +438,16 @@ async function devCommand(
   }
 
   ctx.stdout.write(`vaultlier dev - config UI for ${config.projectId}\n`);
-  ctx.stdout.write(`  showing metadata only - secrets stay sealed\n`);
+  if (remote) {
+    ctx.stdout.write(
+      `  showing metadata + remote "${remote.environment}" values - other envs stay sealed\n`,
+    );
+  } else {
+    ctx.stdout.write(`  showing metadata only - secrets stay sealed\n`);
+  }
+  if (remoteWarning) {
+    ctx.stdout.write(`  warning: ${remoteWarning}\n`);
+  }
   ctx.stdout.write(`  ${handle.url}\n`);
   ctx.stdout.write(`  press Ctrl+C to stop\n`);
 
@@ -471,9 +555,141 @@ async function portalCommand(
     }
   }
 
-  ctx.stderr.write(
-    `vaultlier ${command}: portal API sync is not available in this build yet\n`,
+  const apiKey = await resolveCliApiKey(flags, ctx);
+  if (!apiKey) {
+    ctx.stderr.write(
+      `vaultlier ${command}: missing API key. Pass --api-key, set ${API_KEY_ENV}, or run vaultlier init.\n`,
+    );
+    return ExitCode.AuthFailed;
+  }
+  if (!looksLikeApiKey(apiKey)) {
+    ctx.stderr.write(
+      `vaultlier ${command}: invalid API key format (expected a "vlt_" key)\n`,
+    );
+    return ExitCode.AuthFailed;
+  }
+  const options = portalOptions(flags, ctx, apiKey);
+
+  if (command === "diff") {
+    let portal: PortalSchema;
+    try {
+      portal = await fetchPortalSchema(options, config.projectId);
+    } catch (err) {
+      return reportPortalError("diff", err, ctx);
+    }
+    printSchemaDiff(diffSchemas(config, portal), config, portal, ctx);
+    return ExitCode.Success;
+  }
+
+  let portal: PortalSchema;
+  try {
+    portal = await pushPortalSchema(options, config);
+  } catch (err) {
+    return reportPortalError("push", err, ctx);
+  }
+
+  const syncedConfig = applyPortalSchema(config, portal);
+  const configPath = await findConfigPath(ctx.cwd);
+  if (!configPath) return ExitCode.SchemaInvalid;
+  await writeJson(configPath.path, syncedConfig);
+  await writeGeneratedClient(ctx.cwd, syncedConfig);
+  ctx.stdout.write(
+    `pushed schema metadata - portal now at v${portal.version}\n`,
   );
+  return ExitCode.Success;
+}
+
+function portalOptions(
+  flags: Record<string, string | boolean>,
+  ctx: CliContext,
+  apiKey: string,
+): PortalClientOptions {
+  return {
+    apiUrl: resolveApiUrl(flags["api-url"] ?? flags.apiUrl, ctx.env),
+    apiKey,
+    fetchImpl: ctx.fetch,
+  };
+}
+
+/**
+ * API key resolution for portal commands: explicit flag, then the runtime
+ * env var, then the local credential cache written by `vaultlier init`.
+ */
+async function resolveCliApiKey(
+  flags: Record<string, string | boolean>,
+  ctx: CliContext,
+): Promise<string | undefined> {
+  for (const name of ["api-key", "apiKey"]) {
+    const value = flags[name];
+    if (typeof value === "string" && value.length > 0) return value;
+  }
+  if (ctx.env[API_KEY_ENV]) return ctx.env[API_KEY_ENV];
+  return (await readCredentialCache(ctx.cwd))?.apiKey;
+}
+
+/** Adopt the portal's schema locally, preserving local key descriptions. */
+function applyPortalSchema(
+  config: VaultlierConfig,
+  portal: PortalSchema,
+): VaultlierConfig {
+  const keys: Record<string, VaultKeySchema> = {};
+  for (const [name, schema] of Object.entries(portal.keys)) {
+    const description = config.keys[name]?.description;
+    keys[name] = {
+      type: schema.type,
+      ...(schema.scopes ? { scopes: schema.scopes } : {}),
+      ...(description ? { description } : {}),
+    };
+  }
+  return {
+    ...config,
+    version: portal.version,
+    environments: portal.environments,
+    keys,
+  };
+}
+
+function printSchemaDiff(
+  diff: SchemaDiff,
+  config: VaultlierConfig,
+  portal: PortalSchema,
+  ctx: CliContext,
+): void {
+  if (isDiffEmpty(diff)) {
+    ctx.stdout.write(`schema in sync with portal (v${portal.version})\n`);
+    return;
+  }
+  ctx.stdout.write(`local v${config.version} vs portal v${portal.version}\n`);
+  for (const name of diff.environmentsOnlyLocal) {
+    ctx.stdout.write(`  + env ${name} (local only - push to create)\n`);
+  }
+  for (const name of diff.environmentsOnlyPortal) {
+    ctx.stdout.write(`  - env ${name} (portal only - pull to fetch)\n`);
+  }
+  for (const name of diff.onlyLocal) {
+    ctx.stdout.write(`  + ${name} (local only - push to create)\n`);
+  }
+  for (const name of diff.onlyPortal) {
+    ctx.stdout.write(`  - ${name} (portal only - pull to fetch)\n`);
+  }
+  for (const name of diff.changed) {
+    ctx.stdout.write(`  ~ ${name} (type or scopes differ)\n`);
+  }
+}
+
+function reportPortalError(
+  command: string,
+  err: unknown,
+  ctx: CliContext,
+): ExitCode {
+  if (err instanceof PortalApiError) {
+    const suffix = err.requestId ? ` (request ${err.requestId})` : "";
+    ctx.stderr.write(`vaultlier ${command}: ${err.message}${suffix}\n`);
+    if (err.status === 401 || err.status === 403) return ExitCode.AuthFailed;
+    if (err.status === 409) return ExitCode.Conflict;
+    return ExitCode.GenericError;
+  }
+  ctx.stderr.write(`vaultlier ${command}: ${(err as Error).message}\n`);
   return ExitCode.GenericError;
 }
 

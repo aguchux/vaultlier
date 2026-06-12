@@ -101,11 +101,45 @@ export async function requireProjectAccess(userId: string, projectId: string) {
   return { project, role };
 }
 
+/** Resolve an organization membership or hide the tenant with a 404. */
+export async function requireOrganizationAccess(
+  userId: string,
+  organizationId: string,
+) {
+  const organization = await prisma.organization.findFirst({
+    where: {
+      id: organizationId,
+      memberships: { some: { userId } },
+    },
+    include: {
+      memberships: { where: { userId }, select: { role: true } },
+    },
+  });
+  if (!organization) notFound();
+  const role: Role = organization.memberships[0]?.role ?? "VIEWER";
+  return { organization, role };
+}
+
 export function canManageProject(role: Role): boolean {
   return role === "OWNER" || role === "ADMIN";
 }
 
-function slugify(input: string): string {
+export function canManageOrganization(role: Role): boolean {
+  return role === "OWNER" || role === "ADMIN";
+}
+
+export function canManageRole(
+  actorRole: Role,
+  targetRole: Role,
+  nextRole?: Role,
+): boolean {
+  if (targetRole === "OWNER" || nextRole === "OWNER") return false;
+  if (actorRole === "OWNER") return true;
+  if (actorRole !== "ADMIN") return false;
+  return targetRole !== "ADMIN" && nextRole !== "ADMIN";
+}
+
+export function slugify(input: string): string {
   return (
     input
       .toLowerCase()
