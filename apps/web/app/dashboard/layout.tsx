@@ -50,7 +50,7 @@ export default async function DashboardLayout({
         <div className="mt-auto p-5">
           <div className="rounded-2xl border border-brand-100 bg-brand-50/60 p-4">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-brand-200 bg-white text-brand-700">
-              <Logo showWordmark={false} className="[&>svg]:h-5 [&>svg]:w-5" />
+              <Logo showWordmark={false} className="[&>img]:h-5 [&>img]:w-5" />
             </div>
             <p className="mt-3 text-sm font-semibold">
               Secrets never touch disk.

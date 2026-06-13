@@ -108,6 +108,7 @@ describe("Vaultlier email templates", () => {
     const text = await render(email, { plainText: true });
 
     expect(html).toContain("Vaultlier");
+    expect(html).toContain("https://vaultlier.com/brand/logo.png");
     expect(html).toContain("<!DOCTYPE html");
     expect(text).toContain("Vaultlier");
   });

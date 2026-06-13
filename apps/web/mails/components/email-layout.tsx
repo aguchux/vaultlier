@@ -7,6 +7,7 @@ import {
   Heading,
   Hr,
   Html,
+  Img,
   Link,
   Preview,
   Section,
@@ -35,7 +36,13 @@ export function EmailLayout({
       <Body style={styles.body}>
         <Container style={styles.container}>
           <Section style={styles.brandRow}>
-            <Text style={styles.brandMark}>V</Text>
+            <Img
+              src="https://vaultlier.com/brand/logo.png"
+              width="36"
+              height="36"
+              alt=""
+              style={styles.brandMark}
+            />
             <Text style={styles.brand}>Vaultlier</Text>
           </Section>
           <Heading style={styles.heading}>{heading}</Heading>
@@ -105,16 +112,12 @@ const styles = {
   },
   brandRow: { marginBottom: "28px" },
   brandMark: {
-    backgroundColor: "#059669",
-    borderRadius: "8px",
-    color: "#ffffff",
     display: "inline-block",
-    fontSize: "16px",
-    fontWeight: "700",
-    lineHeight: "32px",
+    height: "36px",
     margin: "0 10px 0 0",
-    textAlign: "center" as const,
-    width: "32px",
+    objectFit: "contain" as const,
+    verticalAlign: "middle",
+    width: "36px",
   },
   brand: {
     color: "#0f172a",

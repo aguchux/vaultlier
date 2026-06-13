@@ -1,3 +1,4 @@
+import Image from "next/image";
 import type { ReactNode } from "react";
 import { SCHEMA_ID, SCHEMA_VERSION } from "./v2/schema";
 
@@ -22,13 +23,23 @@ const preStyle = {
 export default function Home(): ReactNode {
   return (
     <main>
+      <a href="https://vaultlier.com" style={brandStyle}>
+        <Image
+          src="/brand/logo.png"
+          alt=""
+          width={48}
+          height={48}
+          priority
+          style={brandImageStyle}
+        />
+        <span>Vaultlier</span>
+      </a>
       <h1>Vaultlier Schema</h1>
       <p>
-        JSON Schema for the Vaultlier config file (<code style={codeStyle}>
-          vaultlier.json
-        </code>{" "}
-        or <code style={codeStyle}>vaultlier.config.json</code>). The config
-        holds project metadata only — never decrypted secret values.
+        JSON Schema for the Vaultlier config file (
+        <code style={codeStyle}>vaultlier.json</code> or{" "}
+        <code style={codeStyle}>vaultlier.config.json</code>). The config holds
+        project metadata only — never decrypted secret values.
       </p>
 
       <h2>Current schema ({SCHEMA_VERSION})</h2>
@@ -60,12 +71,29 @@ export default function Home(): ReactNode {
 
       <h2>Versioning</h2>
       <p>
-        The path is pinned by major version. <code style={codeStyle}>/v2/*</code>{" "}
-        is stable; a future breaking change would publish under{" "}
-        <code style={codeStyle}>/v3/*</code>. Use{" "}
+        The path is pinned by major version.{" "}
+        <code style={codeStyle}>/v2/*</code> is stable; a future breaking change
+        would publish under <code style={codeStyle}>/v3/*</code>. Use{" "}
         <code style={codeStyle}>/v2/latest/vaultlier.schema.json</code> to track
         the newest schema within v2.
       </p>
     </main>
   );
 }
+
+const brandStyle = {
+  alignItems: "center",
+  color: "inherit",
+  display: "inline-flex",
+  fontSize: "1.25rem",
+  fontWeight: 700,
+  gap: "0.65rem",
+  marginBottom: "1.5rem",
+  textDecoration: "none",
+} as const;
+
+const brandImageStyle = {
+  height: "2.5rem",
+  objectFit: "contain",
+  width: "2.5rem",
+} as const;
