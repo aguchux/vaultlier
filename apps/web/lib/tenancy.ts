@@ -12,6 +12,8 @@ import type { Role } from "@repo/db";
 import { auth } from "./auth";
 import { logAudit } from "./audit";
 
+export { canManageOrganization, canManageProject, canManageRole } from "./rbac";
+
 export interface SessionUser {
   id: string;
   email: string;
@@ -118,25 +120,6 @@ export async function requireOrganizationAccess(
   if (!organization) notFound();
   const role: Role = organization.memberships[0]?.role ?? "VIEWER";
   return { organization, role };
-}
-
-export function canManageProject(role: Role): boolean {
-  return role === "OWNER" || role === "ADMIN";
-}
-
-export function canManageOrganization(role: Role): boolean {
-  return role === "OWNER" || role === "ADMIN";
-}
-
-export function canManageRole(
-  actorRole: Role,
-  targetRole: Role,
-  nextRole?: Role,
-): boolean {
-  if (targetRole === "OWNER" || nextRole === "OWNER") return false;
-  if (actorRole === "OWNER") return true;
-  if (actorRole !== "ADMIN") return false;
-  return targetRole !== "ADMIN" && nextRole !== "ADMIN";
 }
 
 export function slugify(input: string): string {

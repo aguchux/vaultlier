@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import type { Role } from "@repo/db";
 import { logAudit } from "../../lib/audit";
+import { canInviteRole } from "../../lib/rbac";
 import {
   canManageOrganization,
   canManageRole,
@@ -118,8 +119,8 @@ export async function inviteOrganizationMember(
     .toLowerCase();
   const role = readRole(formData.get("role"));
   if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error("Enter a valid email.");
-  if (actorRole === "ADMIN" && role === "ADMIN") {
-    throw new Error("Only owners can invite organization admins.");
+  if (!canInviteRole(actorRole, role)) {
+    throw new Error("You cannot invite a member with that role.");
   }
 
   const existingUser = await prisma.user.findUnique({ where: { email } });
