@@ -5,6 +5,10 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
 import { logAudit } from "../../../lib/audit";
 import {
+  sendApiKeyCreatedEmail,
+  sendApiKeyRevokedEmail,
+} from "../../../lib/email-notifications";
+import {
   canManageProject,
   requireProjectAccess,
   requireUser,
@@ -64,6 +68,14 @@ export async function createProjectApiKey(
       tx,
     );
   });
+  await sendApiKeyCreatedEmail({
+    to: user.email,
+    projectId,
+    projectName: project.name,
+    keyName: name,
+    keyPrefix: prefix,
+    role: keyRole,
+  });
 
   revalidatePath("/dashboard/api-keys");
   return { rawKey, name };
@@ -100,6 +112,13 @@ export async function revokeProjectApiKey(
       },
       tx,
     );
+  });
+  await sendApiKeyRevokedEmail({
+    to: user.email,
+    projectId,
+    projectName: project.name,
+    keyName: apiKey.name,
+    keyPrefix: apiKey.prefix,
   });
   revalidatePath("/dashboard/api-keys");
 }

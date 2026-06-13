@@ -13,6 +13,10 @@ import { prisma } from "@repo/db";
 import { generateApiKey, hashApiKey } from "../../lib/api";
 import { logAudit } from "../../lib/audit";
 import {
+  sendApiKeyCreatedEmail,
+  sendApiKeyRevokedEmail,
+} from "../../lib/email-notifications";
+import {
   canManageProject,
   requireProjectAccess,
   requireUser,
@@ -143,6 +147,14 @@ export async function createApiKey(
       tx,
     );
   });
+  await sendApiKeyCreatedEmail({
+    to: user.email,
+    projectId,
+    projectName: project.name,
+    keyName: name,
+    keyPrefix: prefix,
+    role: keyRole,
+  });
 
   revalidatePath(`/dashboard/${projectId}/settings`);
   return { rawKey, name };
@@ -180,6 +192,13 @@ export async function revokeApiKey(
       },
       tx,
     );
+  });
+  await sendApiKeyRevokedEmail({
+    to: user.email,
+    projectId,
+    projectName: project.name,
+    keyName: apiKey.name,
+    keyPrefix: apiKey.prefix,
   });
 
   revalidatePath(`/dashboard/${projectId}/settings`);

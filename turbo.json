@@ -16,7 +16,14 @@
     "PROGRAMDATA",
     "USERPROFILE"
   ],
-  "globalEnv": ["DATABASE_URL", "NODE_ENV"],
+  "globalEnv": [
+    "AUTH_URL",
+    "DATABASE_URL",
+    "NODE_ENV",
+    "RESEND_API_KEY",
+    "RESEND_FROM_EMAIL",
+    "VAULTLIER_APP_URL"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

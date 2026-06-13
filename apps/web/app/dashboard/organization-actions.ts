@@ -6,6 +6,13 @@ import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import type { Role } from "@repo/db";
 import { logAudit } from "../../lib/audit";
+import {
+  sendOrganizationInvitationEmail,
+  sendOrganizationInvitationRevokedEmail,
+  sendOrganizationMemberAddedEmail,
+  sendOrganizationMemberRemovedEmail,
+  sendOrganizationRoleChangedEmail,
+} from "../../lib/email-notifications";
 import { canInviteRole } from "../../lib/rbac";
 import { organizationDeletionBlockers } from "../../lib/resource-policy";
 import {
@@ -177,7 +184,7 @@ export async function inviteOrganizationMember(
   formData: FormData,
 ): Promise<void> {
   const actor = await requireUser();
-  const { role: actorRole } = await requireOrganizationAccess(
+  const { organization, role: actorRole } = await requireOrganizationAccess(
     actor.id,
     organizationId,
   );
@@ -245,6 +252,23 @@ export async function inviteOrganizationMember(
       tx,
     );
   });
+  if (existingUser) {
+    await sendOrganizationMemberAddedEmail({
+      to: email,
+      name: existingUser.name,
+      organizationName: organization.name,
+      organizationId,
+      role,
+    });
+  } else {
+    await sendOrganizationInvitationEmail({
+      to: email,
+      organizationName: organization.name,
+      inviterName: actor.name ?? actor.email,
+      role,
+      expiresAt,
+    });
+  }
   revalidateOrganization(organizationId);
 }
 
@@ -253,7 +277,7 @@ export async function updateOrganizationMemberRole(
   formData: FormData,
 ): Promise<void> {
   const actor = await requireUser();
-  const { role: actorRole } = await requireOrganizationAccess(
+  const { organization, role: actorRole } = await requireOrganizationAccess(
     actor.id,
     organizationId,
   );
@@ -261,7 +285,7 @@ export async function updateOrganizationMemberRole(
   const nextRole = readRole(formData.get("role"));
   const membership = await prisma.membership.findFirst({
     where: { id: membershipId, organizationId },
-    include: { user: { select: { email: true } } },
+    include: { user: { select: { email: true, name: true } } },
   });
   if (!membership) throw new Error("Organization member not found.");
   if (!canManageRole(actorRole, membership.role, nextRole)) {
@@ -287,6 +311,15 @@ export async function updateOrganizationMemberRole(
       tx,
     );
   });
+  if (membership.user.email) {
+    await sendOrganizationRoleChangedEmail({
+      to: membership.user.email,
+      name: membership.user.name,
+      organizationName: organization.name,
+      previousRole: membership.role,
+      nextRole,
+    });
+  }
   revalidateOrganization(organizationId);
 }
 
@@ -295,14 +328,14 @@ export async function removeOrganizationMember(
   formData: FormData,
 ): Promise<void> {
   const actor = await requireUser();
-  const { role: actorRole } = await requireOrganizationAccess(
+  const { organization, role: actorRole } = await requireOrganizationAccess(
     actor.id,
     organizationId,
   );
   const membershipId = String(formData.get("membershipId") ?? "");
   const membership = await prisma.membership.findFirst({
     where: { id: membershipId, organizationId },
-    include: { user: { select: { email: true } } },
+    include: { user: { select: { email: true, name: true } } },
   });
   if (!membership) throw new Error("Organization member not found.");
   if (!canManageRole(actorRole, membership.role)) {
@@ -321,6 +354,13 @@ export async function removeOrganizationMember(
       tx,
     );
   });
+  if (membership.user.email) {
+    await sendOrganizationMemberRemovedEmail({
+      to: membership.user.email,
+      name: membership.user.name,
+      organizationName: organization.name,
+    });
+  }
   revalidateOrganization(organizationId);
 }
 
@@ -329,7 +369,7 @@ export async function revokeOrganizationInvitation(
   formData: FormData,
 ): Promise<void> {
   const actor = await requireUser();
-  const { role: actorRole } = await requireOrganizationAccess(
+  const { organization, role: actorRole } = await requireOrganizationAccess(
     actor.id,
     organizationId,
   );
@@ -356,6 +396,10 @@ export async function revokeOrganizationInvitation(
       },
       tx,
     );
+  });
+  await sendOrganizationInvitationRevokedEmail({
+    to: invitation.email,
+    organizationName: organization.name,
   });
   revalidateOrganization(organizationId);
 }

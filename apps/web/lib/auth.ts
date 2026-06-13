@@ -13,6 +13,11 @@ import Google from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@repo/db";
 import { logAudit } from "./audit";
+import {
+  sendOrganizationInvitationAcceptedEmail,
+  sendOrganizationMemberAddedEmail,
+  sendWelcomeEmail,
+} from "./email-notifications";
 
 const nextAuth = NextAuth({
   adapter: PrismaAdapter(prisma),
@@ -29,6 +34,9 @@ const nextAuth = NextAuth({
         userId: user.id,
         metadata: { email: user.email },
       });
+      if (user.email) {
+        await sendWelcomeEmail({ to: user.email, name: user.name });
+      }
     },
     async signIn({ user }) {
       if (!user.id || !user.email) return;
@@ -38,6 +46,10 @@ const nextAuth = NextAuth({
           email,
           acceptedAt: null,
           expiresAt: { gt: new Date() },
+        },
+        include: {
+          organization: { select: { name: true } },
+          invitedBy: { select: { email: true, name: true } },
         },
       });
       if (invitations.length === 0) return;
@@ -73,6 +85,25 @@ const nextAuth = NextAuth({
           );
         }
       });
+
+      for (const invitation of invitations) {
+        await sendOrganizationMemberAddedEmail({
+          to: email,
+          name: user.name,
+          organizationName: invitation.organization.name,
+          organizationId: invitation.organizationId,
+          role: invitation.role,
+        });
+        if (invitation.invitedBy.email) {
+          await sendOrganizationInvitationAcceptedEmail({
+            to: invitation.invitedBy.email,
+            memberName: user.name ?? email,
+            memberEmail: email,
+            organizationName: invitation.organization.name,
+            role: invitation.role,
+          });
+        }
+      }
     },
   },
 });
