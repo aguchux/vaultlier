@@ -12,6 +12,7 @@ import { FeatureCard } from "@repo/ui/feature-card";
 import { CodeWindow } from "./components/code-window";
 import { SiteFooter } from "./components/site-footer";
 import { SiteHeader } from "./components/site-header";
+import { DOCS_URL } from "../lib/links";
 
 const FEATURES = [
   {
@@ -64,11 +65,17 @@ function Hero(): React.JSX.Element {
         </p>
 
         <div className="mt-8 flex flex-wrap items-center gap-3">
-          <Button href="#" size="lg">
+          <Button href="/dashboard" size="lg">
             <ChevronRight className="h-4 w-4" />
             Get Started
           </Button>
-          <Button href="#" size="lg" variant="secondary">
+          <Button
+            href={DOCS_URL}
+            size="lg"
+            variant="secondary"
+            target="_blank"
+            rel="noreferrer"
+          >
             <BookOpen className="h-4 w-4" />
             Read Docs
           </Button>

@@ -3,8 +3,14 @@ import { Button } from "@repo/ui/button";
 import { Logo } from "@repo/ui/logo";
 import { ThemeToggle } from "@repo/ui/theme-toggle";
 import { auth, signOut } from "../../lib/auth";
+import { DOCS_URL } from "../../lib/links";
 
-const NAV = ["Product", "Docs", "Security", "Company"];
+const NAV: { label: string; href: string; external?: boolean }[] = [
+  { label: "Product", href: "/#product" },
+  { label: "Docs", href: DOCS_URL, external: true },
+  { label: "Security", href: `${DOCS_URL}/security`, external: true },
+  { label: "Company", href: "/#company" },
+];
 
 export async function SiteHeader(): Promise<React.JSX.Element> {
   const session = await auth();
@@ -18,11 +24,14 @@ export async function SiteHeader(): Promise<React.JSX.Element> {
       <nav className="hidden items-center gap-8 md:flex">
         {NAV.map((item) => (
           <a
-            key={item}
-            href="#"
+            key={item.label}
+            href={item.href}
+            {...(item.external
+              ? { target: "_blank", rel: "noreferrer" }
+              : {})}
             className="text-sm font-medium text-ink-700 transition-colors hover:text-ink-900 dark:text-ink-300 dark:hover:text-white"
           >
-            {item}
+            {item.label}
           </a>
         ))}
       </nav>

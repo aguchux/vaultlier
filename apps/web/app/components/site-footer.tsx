@@ -1,10 +1,11 @@
 import { Logo } from "@repo/ui/logo";
+import { DOCS_URL, GITHUB_URL, NPM_URL } from "../../lib/links";
 
 const LINKS = [
-  { label: "Docs", href: "#" },
-  { label: "GitHub", href: "https://github.com/aguchux/vaultlierjs" },
-  { label: "npm", href: "https://www.npmjs.com/package/vaultlier" },
-  { label: "Security", href: "#" },
+  { label: "Docs", href: DOCS_URL },
+  { label: "GitHub", href: GITHUB_URL },
+  { label: "npm", href: NPM_URL },
+  { label: "Security", href: `${DOCS_URL}/security` },
 ];
 
 export function SiteFooter(): React.JSX.Element {
@@ -19,6 +20,8 @@ export function SiteFooter(): React.JSX.Element {
             <a
               key={link.label}
               href={link.href}
+              target="_blank"
+              rel="noreferrer"
               className="text-sm text-ink-500 transition-colors hover:text-ink-900 dark:text-ink-400 dark:hover:text-white"
             >
               {link.label}

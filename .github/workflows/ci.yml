@@ -2,9 +2,8 @@ name: CI
 
 # Verifies the `vaultlier` package on every PR and push to main: lint
 # (--max-warnings 0), type checks, tests with coverage thresholds, and a
-# publishable build — across the supported Node range and on Windows, since
-# the CLI ships cross-platform. The release workflow re-runs the same
-# verification before publishing.
+# publishable build across the monorepo's supported Node range and on Windows.
+# A separate packed-artifact job verifies the published runtime on Node 18.
 on:
   push:
     branches: [main]
@@ -26,17 +25,17 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        # 18 is the package's documented minimum (`engines.node >=18`).
-        node: [18, 20, 22]
+        # Prisma 7 requires 20.19+, 22.12+, or 24+ during installation.
+        node: ["20.19", "22.12", "24"]
         include:
           - os: windows-latest
-            node: 22
+            node: "22.12"
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node ${{ matrix.node }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node }}
           cache: npm
@@ -57,9 +56,51 @@ jobs:
         run: npx turbo run build --filter=vaultlier
 
       - name: Upload coverage report
-        if: matrix.os == 'ubuntu-latest' && matrix.node == 22
-        uses: actions/upload-artifact@v4
+        if: matrix.os == 'ubuntu-latest' && matrix.node == '22.12'
+        uses: actions/upload-artifact@v7
         with:
           name: vaultlier-coverage
           path: packages/vaultlier/coverage/lcov.info
           retention-days: 14
+
+  node-18-runtime:
+    name: Packed runtime on Node 18
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup build Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22.12"
+          cache: npm
+
+      - name: Install and build package
+        run: |
+          npm ci
+          npm run build --workspace=vaultlier
+          npm pack --workspace=vaultlier --pack-destination "$RUNNER_TEMP"
+
+      - name: Setup Node 18
+        uses: actions/setup-node@v6
+        with:
+          node-version: "18"
+          package-manager-cache: false
+
+      - name: Verify packed runtime
+        shell: bash
+        run: |
+          test_dir="$RUNNER_TEMP/vaultlier-node18"
+          mkdir -p "$test_dir"
+          cd "$test_dir"
+          npm init -y >/dev/null
+          npm install "$RUNNER_TEMP"/vaultlier-*.tgz
+          node --input-type=module <<'EOF'
+          import { createClient } from "vaultlier";
+          import { createClient as runtimeCreateClient } from "vaultlier/runtime";
+
+          if (typeof createClient !== "function" || typeof runtimeCreateClient !== "function") {
+            throw new Error("Vaultlier runtime exports are unavailable on Node 18.");
+          }
+          EOF
