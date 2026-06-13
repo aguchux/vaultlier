@@ -42,6 +42,8 @@ model User {
   accounts                    Account[]
   sessions                    Session[]
   sentOrganizationInvitations OrganizationInvitation[] @relation("OrganizationInvitationSender")
+  cliLoginSessions            CliLoginSession[]
+  cliTokens                   CliToken[]
 
   @@map("users")
 }
@@ -258,6 +260,63 @@ model ApiKey {
 }
 
 // ---------------------------------------------------------------------------
+// CLI authentication (OAuth device-code flow)
+// ---------------------------------------------------------------------------
+
+// A pending CLI login. The CLI creates one (unauthenticated), shows the user
+// the userCode + verification URL, and polls by sessionId until the user
+// approves it in the browser. On approval a CliToken is minted and its raw
+// value handed back exactly once through the poll response.
+model CliLoginSession {
+  id        String                @id @default(cuid())
+  // Opaque id the CLI polls with (e.g. cls_xxx). Distinct from the PK so the
+  // pollable handle is not a database identifier.
+  publicId  String                @unique
+  // Short, human-verifiable code shown in both the CLI and the browser.
+  userCode  String                @unique
+  status    CliLoginStatus        @default(PENDING)
+  // Set once a user approves; the actor and the token they authorized.
+  userId    String?
+  cliTokenId String?              @unique
+  // Raw token, held transiently between approval and the CLI's first poll.
+  // Cleared the moment it is handed back, so it lives at most one poll cycle.
+  pendingToken String?
+  expiresAt DateTime
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+
+  user     User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  cliToken CliToken? @relation(fields: [cliTokenId], references: [id], onDelete: SetNull)
+
+  @@index([expiresAt])
+  @@map("cli_login_sessions")
+}
+
+// A long-lived account token issued to a CLI/device on login. Authorizes
+// account-scoped operations (list/create projects) for its owner — NOT secret
+// access, which always requires a project ApiKey. Stored as a hash + prefix,
+// like ApiKey; the raw token is shown once.
+model CliToken {
+  id         String    @id @default(cuid())
+  userId     String
+  // Non-sensitive prefix for display (e.g. "vlt_acct_ab12").
+  prefix     String
+  hashedToken String   @unique
+  // Free-form device label (host/OS) for the user to recognize sessions.
+  device     String?
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  expiresAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  loginSession CliLoginSession?
+
+  @@index([userId])
+  @@map("cli_tokens")
+}
+
+// ---------------------------------------------------------------------------
 // Audit
 // ---------------------------------------------------------------------------
 
@@ -313,6 +372,13 @@ enum KeyType {
   JSON
 }
 
+enum CliLoginStatus {
+  PENDING
+  APPROVED
+  DENIED
+  EXPIRED
+}
+
 enum AuditAction {
   USER_SIGNED_UP
   ORGANIZATION_CREATED
@@ -336,4 +402,7 @@ enum AuditAction {
   ORGANIZATION_DELETED
   ENVIRONMENT_UPDATED
   ENVIRONMENT_DELETED
+  CLI_LOGIN_APPROVED
+  CLI_LOGIN_DENIED
+  CLI_TOKEN_REVOKED
 }

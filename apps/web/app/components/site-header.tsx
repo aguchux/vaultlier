@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Button } from "@repo/ui/button";
 import { Logo } from "@repo/ui/logo";
+import { ThemeToggle } from "@repo/ui/theme-toggle";
 import { auth, signOut } from "../../lib/auth";
 
 const NAV = ["Product", "Docs", "Security", "Company"];
@@ -19,13 +20,16 @@ export async function SiteHeader(): Promise<React.JSX.Element> {
           <a
             key={item}
             href="#"
-            className="text-sm font-medium text-ink-700 transition-colors hover:text-ink-900"
+            className="text-sm font-medium text-ink-700 transition-colors hover:text-ink-900 dark:text-ink-300 dark:hover:text-white"
           >
             {item}
           </a>
         ))}
       </nav>
-      {user ? <SignedInActions user={user} /> : <SignedOutActions />}
+      <div className="flex items-center gap-3">
+        <ThemeToggle />
+        {user ? <SignedInActions user={user} /> : <SignedOutActions />}
+      </div>
     </header>
   );
 }
@@ -35,7 +39,7 @@ function SignedOutActions(): React.JSX.Element {
     <div className="flex items-center gap-3">
       <a
         href="/login"
-        className="hidden text-sm font-medium text-ink-700 hover:text-ink-900 sm:block"
+        className="hidden text-sm font-medium text-ink-700 hover:text-ink-900 sm:block dark:text-ink-300 dark:hover:text-white"
       >
         Log in
       </a>
@@ -61,7 +65,7 @@ function SignedInActions({
     <div className="flex items-center gap-3">
       <Link
         href="/dashboard"
-        className="hidden items-center gap-2 text-sm font-medium text-ink-700 hover:text-ink-900 sm:inline-flex"
+        className="hidden items-center gap-2 text-sm font-medium text-ink-700 hover:text-ink-900 sm:inline-flex dark:text-ink-300 dark:hover:text-white"
       >
         <Avatar image={user.image} label={label} />
         <span className="max-w-40 truncate">{label}</span>
@@ -77,7 +81,7 @@ function SignedInActions({
       >
         <button
           type="submit"
-          className="hidden text-sm font-medium text-ink-500 hover:text-ink-900 sm:block"
+          className="hidden text-sm font-medium text-ink-500 hover:text-ink-900 sm:block dark:text-ink-400 dark:hover:text-white"
         >
           Sign out
         </button>

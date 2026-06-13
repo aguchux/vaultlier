@@ -101,6 +101,36 @@ describe("parseArgs", () => {
     expect(r.command).toBe("init");
     expect(r.flags.help).toBe(true);
   });
+
+  it("normalizes --environment and camelCase aliases to canonical names", () => {
+    const r = parseArgs([
+      "set",
+      "--environment=prod",
+      "--apiKey=vlt_test_12345678",
+      "--projectId=prj_x",
+      "--apiUrl=https://portal.test",
+    ]);
+    expect(r.env).toBe("prod");
+    expect(r.flags["api-key"]).toBe("vlt_test_12345678");
+    expect(r.flags["project-id"]).toBe("prj_x");
+    expect(r.flags["api-url"]).toBe("https://portal.test");
+  });
+
+  it("parses short flags with inline and space-separated values", () => {
+    const r = parseArgs(["pull", "-e", "prod", "-o=.env.local", "-y", "-h"]);
+    expect(r.env).toBe("prod");
+    expect(r.flags.output).toBe(".env.local");
+    expect(r.flags.yes).toBe(true);
+    expect(r.flags.help).toBe(true);
+  });
+
+  it("collects KEY=VALUE args after a command as positionals", () => {
+    const r = parseArgs(["set", "DATABASE_URL=postgres://x", "RETRIES=3", "--env=prod"]);
+    expect(r.command).toBe("set");
+    expect(r.positionals).toEqual(["DATABASE_URL=postgres://x", "RETRIES=3"]);
+    expect(r.env).toBe("prod");
+    expect(r.flags.DATABASE_URL).toBeUndefined();
+  });
 });
 
 describe("maskApiKey", () => {
@@ -210,13 +240,275 @@ describe("run", () => {
     expect(stderr.read()).toContain("vaultlier.config.json already exists");
   });
 
+  it("init succeeds without an API key and warns how to add one later", async () => {
+    const cwd = await makeTempDir();
+    const stdout = capture();
+
+    const code = await run(["init", "--project-id=prj_checkout_api"], {
+      cwd,
+      stdout: stdout.stream,
+      env: {},
+    });
+
+    expect(code).toBe(ExitCode.Success);
+    expect(stdout.read()).toContain("no API key set");
+    expect(stdout.read()).toContain("VAULTLIER_API_KEY");
+
+    const credentials = JSON.parse(
+      await readFile(join(cwd, ".vaultlier", "credentials.json"), "utf8"),
+    ) as Record<string, unknown>;
+    expect(credentials.projectId).toBe("prj_checkout_api");
+    expect(credentials.apiKey).toBeUndefined();
+  });
+
+  it("login completes the device flow and stores account credentials", async () => {
+    const cwd = await makeTempDir();
+    const home = await makeTempDir();
+    const stdout = capture();
+    let polls = 0;
+    const portal = fakePortal((url, init) => {
+      if (url.endsWith("/v1/cli/sessions") && init?.method === "POST") {
+        return {
+          status: 201,
+          body: {
+            sessionId: "cls_1",
+            userCode: "WDJB-MJHT",
+            verificationUrl: "https://vaultlier.com/cli/approve",
+            expiresInSeconds: 900,
+            pollIntervalSeconds: 1,
+          },
+        };
+      }
+      polls += 1;
+      return polls < 2
+        ? { status: 200, body: { status: "pending" } }
+        : {
+            status: 200,
+            body: {
+              status: "approved",
+              token: "vlt_login_tok",
+              email: "dev@example.com",
+            },
+          };
+    });
+
+    const code = await run(["login", "--api-url=https://portal.test"], {
+      cwd,
+      homedir: home,
+      stdout: stdout.stream,
+      fetch: portal.fetchImpl,
+      sleep: async () => {},
+    });
+
+    expect(code).toBe(ExitCode.Success);
+    expect(stdout.read()).toContain("https://vaultlier.com/cli/approve");
+    expect(stdout.read()).toContain("WDJB-MJHT");
+    expect(stdout.read()).toContain("logged in as dev@example.com");
+
+    const stored = JSON.parse(
+      await readFile(join(home, ".vaultlier", "auth.json"), "utf8"),
+    ) as Record<string, unknown>;
+    expect(stored.token).toBe("vlt_login_tok");
+
+    // A second login is a no-op while credentials exist.
+    const again = capture();
+    expect(
+      await run(["login"], {
+        cwd,
+        homedir: home,
+        stdout: again.stream,
+        fetch: portal.fetchImpl,
+      }),
+    ).toBe(ExitCode.Success);
+    expect(again.read()).toContain("already logged in as dev@example.com");
+  });
+
+  it("login fails when the browser denies the request", async () => {
+    const home = await makeTempDir();
+    const stderr = capture();
+    const portal = fakePortal((url, init) =>
+      init?.method === "POST"
+        ? {
+            status: 201,
+            body: {
+              sessionId: "cls_1",
+              userCode: "CODE",
+              verificationUrl: "https://vaultlier.com/cli/approve",
+              expiresInSeconds: 900,
+              pollIntervalSeconds: 1,
+            },
+          }
+        : { status: 200, body: { status: "denied" } },
+    );
+
+    const code = await run(["login"], {
+      cwd: await makeTempDir(),
+      homedir: home,
+      stdout: capture().stream,
+      stderr: stderr.stream,
+      fetch: portal.fetchImpl,
+      sleep: async () => {},
+    });
+
+    expect(code).toBe(ExitCode.AuthFailed);
+    expect(stderr.read()).toContain("denied");
+  });
+
+  it("logout removes stored credentials and is idempotent", async () => {
+    const home = await makeTempDir();
+    const cwd = await makeTempDir();
+
+    const { mkdir } = await import("node:fs/promises");
+    await mkdir(join(home, ".vaultlier"), { recursive: true });
+    await writeFile(
+      join(home, ".vaultlier", "auth.json"),
+      JSON.stringify({ token: "vlt_login_tok" }),
+      "utf8",
+    );
+
+    const stdout = capture();
+    expect(
+      await run(["logout"], { cwd, homedir: home, stdout: stdout.stream }),
+    ).toBe(ExitCode.Success);
+    expect(stdout.read()).toContain("logged out");
+
+    const again = capture();
+    expect(
+      await run(["logout"], { cwd, homedir: home, stdout: again.stream }),
+    ).toBe(ExitCode.Success);
+    expect(again.read()).toContain("not logged in");
+  });
+
+  it("config set updates project and apiKey without echoing the key", async () => {
+    const cwd = await makeTempDir();
+    await writeFile(
+      join(cwd, "vaultlier.json"),
+      JSON.stringify(
+        {
+          projectId: "prj_old",
+          version: 1,
+          environments: ["dev"],
+          keys: {},
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    const stdout = capture();
+    const code = await run(
+      ["config", "set", "project=prj_new", "apiKey=vlt_test_1234567890"],
+      { cwd, stdout: stdout.stream },
+    );
+
+    expect(code).toBe(ExitCode.Success);
+    expect(stdout.read()).toContain("project set to prj_new");
+    expect(stdout.read()).not.toContain("vlt_test_1234567890");
+
+    const config = JSON.parse(
+      await readFile(join(cwd, "vaultlier.json"), "utf8"),
+    ) as { projectId: string };
+    expect(config.projectId).toBe("prj_new");
+    const client = await readFile(join(cwd, "lib", "vaultlier.ts"), "utf8");
+    expect(client).toContain("prj_new");
+    const cache = JSON.parse(
+      await readFile(join(cwd, ".vaultlier", "credentials.json"), "utf8"),
+    ) as { projectId: string; apiKey: string };
+    expect(cache).toEqual({
+      projectId: "prj_new",
+      apiKey: "vlt_test_1234567890",
+    });
+  });
+
+  it("config set rejects malformed keys and unknown settings", async () => {
+    const cwd = await makeTempDir();
+    const badKey = capture();
+    expect(
+      await run(["config", "set", "apiKey=oops"], {
+        cwd,
+        stderr: badKey.stream,
+      }),
+    ).toBe(ExitCode.AuthFailed);
+    expect(badKey.read()).toContain("invalid API key format");
+
+    const unknown = capture();
+    expect(
+      await run(["config", "set", "color=red"], {
+        cwd,
+        stderr: unknown.stream,
+      }),
+    ).toBe(ExitCode.SchemaInvalid);
+    expect(unknown.read()).toContain('unknown setting "color"');
+  });
+
+  it("config get prints masked state", async () => {
+    const cwd = await makeTempDir();
+    const home = await makeTempDir();
+    const stdout = capture();
+
+    expect(
+      await run(["config", "get"], {
+        cwd,
+        homedir: home,
+        stdout: stdout.stream,
+      }),
+    ).toBe(ExitCode.Success);
+    expect(stdout.read()).toContain("project: (not set)");
+    expect(stdout.read()).toContain("apiKey: (not set)");
+    expect(stdout.read()).toContain("account: (not logged in)");
+  });
+
+  it("config verify validates the project and key against the portal", async () => {
+    const cwd = await makeSetProject();
+    const stdout = capture();
+    const portal = fakePortal(() => ({ status: 200, body: PORTAL_SCHEMA }));
+
+    const code = await run(
+      ["config", "verify", "--api-key=vlt_test_12345678"],
+      { cwd, stdout: stdout.stream, fetch: portal.fetchImpl },
+    );
+
+    expect(code).toBe(ExitCode.Success);
+    expect(stdout.read()).toContain(
+      "apiKey is valid for project prj_checkout_api",
+    );
+
+    const denied = fakePortal(() => ({
+      status: 401,
+      body: { code: "auth/invalid_api_key", message: "Invalid API key." },
+    }));
+    const stderr = capture();
+    expect(
+      await run(["config", "verify", "--api-key=vlt_test_12345678"], {
+        cwd,
+        stderr: stderr.stream,
+        fetch: denied.fetchImpl,
+      }),
+    ).toBe(ExitCode.AuthFailed);
+    expect(stderr.read()).toContain("Invalid API key");
+  });
+
+  it("config verify requires an API key", async () => {
+    const cwd = await makeSetProject();
+    const stderr = capture();
+    expect(
+      await run(["config", "verify"], {
+        cwd,
+        env: {},
+        stderr: stderr.stream,
+      }),
+    ).toBe(ExitCode.AuthFailed);
+    expect(stderr.read()).toContain("no API key found");
+  });
+
   it("init rejects malformed API keys", async () => {
     const cwd = await makeTempDir();
     const stderr = capture();
 
     const code = await run(
       ["init", "--project-id=prj_checkout_api", "--api-key=not-a-key"],
-      { cwd, stderr: stderr.stream },
+      { cwd, stdout: capture().stream, stderr: stderr.stream },
     );
 
     expect(code).toBe(ExitCode.AuthFailed);
@@ -656,6 +948,335 @@ describe("run", () => {
       }),
     ).toBe(ExitCode.GenericError);
     expect(offlineStderr.read()).toContain("could not reach");
+  });
+
+  async function makeSetProject(): Promise<string> {
+    const cwd = await makeTempDir();
+    await writeFile(
+      join(cwd, "vaultlier.json"),
+      JSON.stringify(
+        {
+          projectId: "prj_checkout_api",
+          version: 3,
+          environments: ["dev", "prod"],
+          keys: {
+            DATABASE_URL: { type: "string", scopes: ["all"] },
+            STRIPE_SECRET: { type: "string", scopes: ["prod"] },
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+    return cwd;
+  }
+
+  it("set writes secret values to the portal and reports versions only", async () => {
+    const cwd = await makeSetProject();
+    const stdout = capture();
+    const portal = fakePortal(() => ({
+      status: 200,
+      body: {
+        environment: "prod",
+        versions: { DATABASE_URL: 4, STRIPE_SECRET: 1 },
+      },
+    }));
+
+    const code = await run(
+      [
+        "set",
+        "DATABASE_URL=postgres://prod-db/main",
+        "STRIPE_SECRET=sk_live_abc",
+        "--environment=prod",
+        "--api-key=vlt_test_12345678",
+        "--api-url=https://portal.test",
+      ],
+      { cwd, stdout: stdout.stream, fetch: portal.fetchImpl },
+    );
+
+    expect(code).toBe(ExitCode.Success);
+    expect(portal.requests).toHaveLength(1);
+    expect(portal.requests[0]!.url).toBe(
+      "https://portal.test/v1/projects/prj_checkout_api/secrets",
+    );
+    expect(portal.requests[0]!.method).toBe("PUT");
+    expect(JSON.parse(portal.requests[0]!.body!)).toEqual({
+      environment: "prod",
+      secrets: {
+        DATABASE_URL: "postgres://prod-db/main",
+        STRIPE_SECRET: "sk_live_abc",
+      },
+    });
+    // Versions only — stdout must never echo the values.
+    const out = stdout.read();
+    expect(out).toContain("DATABASE_URL -> v4");
+    expect(out).toContain("STRIPE_SECRET -> v1");
+    expect(out).toContain('set 2 values in "prod"');
+    expect(out).not.toContain("sk_live_abc");
+    expect(out).not.toContain("postgres://prod-db/main");
+  });
+
+  it("set accepts the -e short flag and values containing '='", async () => {
+    const cwd = await makeSetProject();
+    const portal = fakePortal(() => ({
+      status: 200,
+      body: { environment: "dev", versions: { DATABASE_URL: 1 } },
+    }));
+
+    const code = await run(
+      [
+        "set",
+        "DATABASE_URL=postgres://db?opts=a=b",
+        "-e",
+        "dev",
+        "--api-key=vlt_test_12345678",
+      ],
+      { cwd, stdout: capture().stream, fetch: portal.fetchImpl },
+    );
+
+    expect(code).toBe(ExitCode.Success);
+    expect(JSON.parse(portal.requests[0]!.body!)).toMatchObject({
+      environment: "dev",
+      secrets: { DATABASE_URL: "postgres://db?opts=a=b" },
+    });
+  });
+
+  it("set requires an explicit single environment", async () => {
+    const cwd = await makeSetProject();
+    const stderr = capture();
+    expect(
+      await run(["set", "DATABASE_URL=x"], {
+        cwd,
+        stderr: stderr.stream,
+      }),
+    ).toBe(ExitCode.SchemaInvalid);
+    expect(stderr.read()).toContain("--env=prod");
+
+    const allStderr = capture();
+    expect(
+      await run(["set", "DATABASE_URL=x", "--env=all"], {
+        cwd,
+        stderr: allStderr.stream,
+      }),
+    ).toBe(ExitCode.SchemaInvalid);
+
+    const unknownStderr = capture();
+    expect(
+      await run(["set", "DATABASE_URL=x", "--env=qa"], {
+        cwd,
+        stderr: unknownStderr.stream,
+      }),
+    ).toBe(ExitCode.SchemaInvalid);
+    expect(unknownStderr.read()).toContain('unknown environment "qa"');
+  });
+
+  it("set requires at least one well-formed KEY=VALUE pair", async () => {
+    const cwd = await makeSetProject();
+    const emptyStderr = capture();
+    expect(
+      await run(["set", "--env=prod"], { cwd, stderr: emptyStderr.stream }),
+    ).toBe(ExitCode.SchemaInvalid);
+    expect(emptyStderr.read()).toContain("KEY=VALUE");
+
+    const noValueStderr = capture();
+    expect(
+      await run(["set", "DATABASE_URL", "--env=prod"], {
+        cwd,
+        stderr: noValueStderr.stream,
+      }),
+    ).toBe(ExitCode.SchemaInvalid);
+    expect(noValueStderr.read()).toContain("missing a value");
+  });
+
+  it("set rejects schema violations locally before any value leaves the machine", async () => {
+    const cwd = await makeSetProject();
+    const portal = fakePortal(() => ({ status: 200, body: {} }));
+
+    const unknownStderr = capture();
+    expect(
+      await run(
+        ["set", "NOT_IN_SCHEMA=value", "--env=prod", "--api-key=vlt_test_12345678"],
+        { cwd, stderr: unknownStderr.stream, fetch: portal.fetchImpl },
+      ),
+    ).toBe(ExitCode.SchemaInvalid);
+    expect(unknownStderr.read()).toContain("not in the project schema");
+
+    const scopeStderr = capture();
+    expect(
+      await run(
+        ["set", "STRIPE_SECRET=sk_live_abc", "--env=dev", "--api-key=vlt_test_12345678"],
+        { cwd, stderr: scopeStderr.stream, fetch: portal.fetchImpl },
+      ),
+    ).toBe(ExitCode.SchemaInvalid);
+    expect(scopeStderr.read()).toContain('not scoped to environment "dev"');
+
+    expect(portal.requests).toHaveLength(0);
+  });
+
+  it("set fails without an API key and maps portal auth errors", async () => {
+    const cwd = await makeSetProject();
+    const stderr = capture();
+    expect(
+      await run(["set", "DATABASE_URL=x", "--env=prod"], {
+        cwd,
+        stderr: stderr.stream,
+      }),
+    ).toBe(ExitCode.AuthFailed);
+    expect(stderr.read()).toContain("missing API key");
+
+    const denied = fakePortal(() => ({
+      status: 401,
+      body: { code: "auth/invalid_api_key", message: "Invalid API key." },
+    }));
+    expect(
+      await run(
+        ["set", "DATABASE_URL=x", "--env=prod", "--api-key=vlt_test_12345678"],
+        { cwd, stderr: capture().stream, fetch: denied.fetchImpl },
+      ),
+    ).toBe(ExitCode.AuthFailed);
+  });
+
+  it("set creates a missing environment via schema push with --yes", async () => {
+    const cwd = await makeSetProject();
+    const stdout = capture();
+    const portal = fakePortal((url) =>
+      url.endsWith("/schema")
+        ? {
+            status: 200,
+            body: {
+              projectId: "prj_checkout_api",
+              version: 4,
+              environments: ["dev", "prod", "working"],
+              keys: {
+                DATABASE_URL: { type: "string", scopes: ["all"] },
+                STRIPE_SECRET: { type: "string", scopes: ["prod"] },
+              },
+            },
+          }
+        : {
+            status: 200,
+            body: { environment: "working", versions: { DATABASE_URL: 1 } },
+          },
+    );
+
+    const code = await run(
+      [
+        "set",
+        "DATABASE_URL=postgres://working-db",
+        "--env=working",
+        "--yes",
+        "--api-key=vlt_test_12345678",
+        "--api-url=https://portal.test",
+      ],
+      { cwd, stdout: stdout.stream, fetch: portal.fetchImpl },
+    );
+
+    expect(code).toBe(ExitCode.Success);
+    expect(portal.requests).toHaveLength(2);
+    // 1. Additive schema push that declares the new environment — no values.
+    expect(portal.requests[0]!.url).toBe(
+      "https://portal.test/v1/projects/prj_checkout_api/schema",
+    );
+    const schemaBody = JSON.parse(portal.requests[0]!.body!) as {
+      environments: string[];
+    };
+    expect(schemaBody.environments).toContain("working");
+    expect(portal.requests[0]!.body).not.toContain("postgres://working-db");
+    // 2. The secret write against the new environment.
+    expect(portal.requests[1]!.url).toBe(
+      "https://portal.test/v1/projects/prj_checkout_api/secrets",
+    );
+    expect(JSON.parse(portal.requests[1]!.body!)).toMatchObject({
+      environment: "working",
+    });
+
+    expect(stdout.read()).toContain('created environment "working"');
+    // The local config adopts the synced schema including the new env.
+    const config = JSON.parse(
+      await readFile(join(cwd, "vaultlier.json"), "utf8"),
+    ) as { version: number; environments: string[] };
+    expect(config.environments).toContain("working");
+    expect(config.version).toBe(4);
+  });
+
+  it("set does not create an environment without confirmation or --yes", async () => {
+    const cwd = await makeSetProject();
+    const stderr = capture();
+    const portal = fakePortal(() => ({ status: 200, body: {} }));
+
+    const code = await run(
+      ["set", "DATABASE_URL=x", "--env=working", "--api-key=vlt_test_12345678"],
+      { cwd, stderr: stderr.stream, fetch: portal.fetchImpl },
+    );
+
+    expect(code).toBe(ExitCode.SchemaInvalid);
+    expect(stderr.read()).toContain("rerun with --yes");
+    expect(portal.requests).toHaveLength(0);
+  });
+
+  it("set rejects invalid environment names before contacting the portal", async () => {
+    const cwd = await makeSetProject();
+    const stderr = capture();
+    const portal = fakePortal(() => ({ status: 200, body: {} }));
+
+    const code = await run(
+      ["set", "DATABASE_URL=x", "--env=%bad", "--yes", "--api-key=vlt_test_12345678"],
+      { cwd, stderr: stderr.stream, fetch: portal.fetchImpl },
+    );
+
+    expect(code).toBe(ExitCode.SchemaInvalid);
+    expect(stderr.read()).toContain('invalid environment name "%bad"');
+    expect(portal.requests).toHaveLength(0);
+  });
+
+  it("set syncs and retries when the environment exists locally but not remotely", async () => {
+    const cwd = await makeSetProject();
+    const stdout = capture();
+    let secretCalls = 0;
+    const portal = fakePortal((url) => {
+      if (url.endsWith("/schema")) {
+        return {
+          status: 200,
+          body: {
+            projectId: "prj_checkout_api",
+            version: 4,
+            environments: ["dev", "prod"],
+            keys: {
+              DATABASE_URL: { type: "string", scopes: ["all"] },
+              STRIPE_SECRET: { type: "string", scopes: ["prod"] },
+            },
+          },
+        };
+      }
+      secretCalls += 1;
+      return secretCalls === 1
+        ? {
+            status: 404,
+            body: {
+              code: "environment/unknown",
+              message: 'Unknown environment "prod".',
+            },
+          }
+        : {
+            status: 200,
+            body: { environment: "prod", versions: { DATABASE_URL: 5 } },
+          };
+    });
+
+    const code = await run(
+      ["set", "DATABASE_URL=postgres://x", "--env=prod", "--api-key=vlt_test_12345678"],
+      { cwd, stdout: stdout.stream, fetch: portal.fetchImpl },
+    );
+
+    expect(code).toBe(ExitCode.Success);
+    // secrets (404) -> schema push -> secrets retry
+    expect(portal.requests.map((r) => r.url.split("/").pop())).toEqual([
+      "secrets",
+      "schema",
+      "secrets",
+    ]);
+    expect(stdout.read()).toContain("DATABASE_URL -> v5");
   });
 
   it("pull adopts the portal schema and regenerates the client", async () => {

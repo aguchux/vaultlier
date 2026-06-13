@@ -1,102 +1,112 @@
-import Image, { type ImageProps } from "next/image";
-import { Button } from "@repo/ui/button";
-import styles from "./page.module.css";
+import {
+  Callout,
+  DocPage,
+  H2,
+  InlineCode,
+  OL,
+  P,
+  UL,
+} from "./components/doc";
+import { CodeBlock } from "./components/code-block";
 
-type Props = Omit<ImageProps, "src"> & {
-  srcLight: string;
-  srcDark: string;
-};
+export const metadata = { title: "Getting Started" };
 
-const ThemeImage = (props: Props) => {
-  const { srcLight, srcDark, ...rest } = props;
+const toc = [
+  { id: "overview", title: "Overview" },
+  { id: "install", title: "Install" },
+  { id: "initialize", title: "Initialize" },
+  { id: "use-in-code", title: "Use in code" },
+  { id: "next-steps", title: "Next steps" },
+];
 
+export default function GettingStartedPage(): React.JSX.Element {
   return (
-    <>
-      <Image {...rest} src={srcLight} className="imgLight" />
-      <Image {...rest} src={srcDark} className="imgDark" />
-    </>
-  );
-};
+    <DocPage
+      href="/"
+      title="Getting Started"
+      lede="Vaultlier helps you securely manage secrets, API keys, and sensitive configuration across your projects and environments."
+      toc={toc}
+    >
+      <H2 id="overview">Overview</H2>
+      <P>
+        Vaultlier is a sealed, centrally hosted configuration vault. It replaces
+        the <InlineCode>.env</InlineCode> workflow without ever writing secret
+        values to disk: your code declares <em>which</em> keys it needs, the
+        portal stores the encrypted values, and the runtime SDK resolves them in
+        memory at startup.
+      </P>
+      <P>You work with Vaultlier through three surfaces:</P>
+      <UL>
+        <li>
+          <strong>The CLI</strong> — set up a project, sync schema metadata,
+          write secret values, and inspect configuration locally.
+        </li>
+        <li>
+          <strong>The SDK</strong> — a tiny, edge-safe runtime client that fetches
+          typed configuration for one environment.
+        </li>
+        <li>
+          <strong>The portal</strong> — the web dashboard where projects,
+          environments, API keys, and members live.
+        </li>
+      </UL>
 
-export default function Home() {
-  return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <ThemeImage
-          className={styles.logo}
-          srcLight="turborepo-dark.svg"
-          srcDark="turborepo-light.svg"
-          alt="Turborepo logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol>
-          <li>
-            Get started by editing <code>apps/docs/app/page.tsx</code>
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+      <Callout tone="security" title="Secrets never touch disk">
+        Vaultlier keeps your secrets in memory and never writes them to disk,
+        logs, or environment files. The artifacts the CLI generates
+        (<InlineCode>vaultlier.json</InlineCode> and{" "}
+        <InlineCode>lib/vaultlier.ts</InlineCode>) contain metadata only — key
+        names, types, and scopes.
+      </Callout>
 
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new/clone?demo-description=Learn+to+implement+a+monorepo+with+a+two+Next.js+sites+that+has+installed+three+local+packages.&demo-image=%2F%2Fimages.ctfassets.net%2Fe5382hct74si%2F4K8ZISWAzJ8X1504ca0zmC%2F0b21a1c6246add355e55816278ef54bc%2FBasic.png&demo-title=Monorepo+with+Turborepo&demo-url=https%3A%2F%2Fexamples-basic-web.vercel.sh%2F&from=templates&project-name=Monorepo+with+Turborepo&repository-name=monorepo-turborepo&repository-url=https%3A%2F%2Fgithub.com%2Fvercel%2Fturborepo%2Ftree%2Fmain%2Fexamples%2Fbasic&root-directory=apps%2Fdocs&skippable-integrations=1&teamSlug=vercel&utm_source=create-turbo"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            href="https://turborepo.dev/docs?utm_source"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.secondary}
-          >
-            Read our docs
-          </a>
-        </div>
-        <Button href="https://turborepo.dev/docs" variant="secondary">
-          Open docs
-        </Button>
-      </main>
-      <footer className={styles.footer}>
-        <a
-          href="https://vercel.com/templates?search=turborepo&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          href="https://turborepo.dev?utm_source=create-turbo"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to turborepo.dev →
-        </a>
-      </footer>
-    </div>
+      <H2 id="install">Install</H2>
+      <P>Install the Vaultlier package to get the CLI and the runtime SDK.</P>
+      <CodeBlock label="Terminal">{`# Using npm
+npm install vaultlier
+
+# Or run the CLI ad-hoc with npx
+npx vaultlier --help`}</CodeBlock>
+
+      <H2 id="initialize">Initialize</H2>
+      <P>
+        Run <InlineCode>init</InlineCode> in your project directory. It installs
+        the dependency if needed, walks you through logging in and selecting (or
+        creating) a project, and writes the schema and the generated typed
+        client.
+      </P>
+      <CodeBlock label="Terminal">{`vaultlier init   # creates vaultlier.json + lib/vaultlier.ts`}</CodeBlock>
+      <P>
+        Pressing Enter at the API-key prompt is fine — a brand-new account has
+        no key yet, and you can add one later with{" "}
+        <InlineCode>vaultlier config set apiKey=…</InlineCode> or the{" "}
+        <InlineCode>VAULTLIER_API_KEY</InlineCode> environment variable.
+      </P>
+
+      <H2 id="use-in-code">Use in code</H2>
+      <P>
+        Import the generated client and resolve configuration for an
+        environment. Every key is fully typed from your schema.
+      </P>
+      <CodeBlock label="TypeScript">{`import { vault } from "./lib/vaultlier";
+
+const config = await vault({ environment: "prod" });
+
+config.DATABASE_URL;     // string
+config.STRIPE_SECRET;    // string
+config.FEATURE_NEW_FLOW; // boolean`}</CodeBlock>
+
+      <H2 id="next-steps">Next steps</H2>
+      <OL>
+        <li>
+          Follow the <strong>Quickstart</strong> for an end-to-end walkthrough.
+        </li>
+        <li>
+          Skim the <strong>CLI</strong> reference for every command and flag.
+        </li>
+        <li>
+          Read <strong>Security</strong> to understand the trust boundaries.
+        </li>
+      </OL>
+    </DocPage>
   );
 }

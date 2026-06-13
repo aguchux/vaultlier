@@ -1,50 +1,19 @@
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@import "tailwindcss";
+@import "@repo/ui/theme.css";
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/* Scan shared UI package sources so its Tailwind classes are generated.
+   The `dark` variant is declared once in @repo/ui/theme.css, imported above. */
+@source "../../../packages/ui/src/**/*.{ts,tsx}";
 
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
+html {
+  -webkit-font-smoothing: antialiased;
+  scroll-behavior: smooth;
+  /* Anchored headings clear the sticky top nav when jumped to. */
+  scroll-padding-top: 6rem;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-}
-
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
-}
-
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-.imgDark {
-  display: none;
-}
-
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
-
-  .imgLight {
-    display: none;
-  }
-  .imgDark {
-    display: unset;
-  }
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
 }

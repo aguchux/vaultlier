@@ -1,0 +1,53 @@
+# Contributing to vaultlier
+
+Thanks for helping! This package is the published npm surface of Vaultlier
+(runtime SDK + CLI), so it is held to stricter standards than the rest of the
+monorepo. CI enforces everything below on every pull request — running the
+same commands locally first saves you a round trip.
+
+## Setup
+
+```bash
+npm ci            # from the repo root (npm workspaces)
+cd packages/vaultlier
+```
+
+## Quality gates (all enforced in CI)
+
+| Command                 | What it checks                                              |
+| ----------------------- | ----------------------------------------------------------- |
+| `npm run lint`          | ESLint with type-aware rules, `--max-warnings 0`            |
+| `npm run check-types`   | `tsc --noEmit` over the whole package                       |
+| `npm run test`          | Vitest suite (`npm run test:watch` while developing)        |
+| `npm run test:coverage` | Tests + coverage thresholds (statements/branches/functions) |
+| `npm run build`         | tsup bundle + `.d.ts` emit must succeed                     |
+
+CI runs these on Node 18/20/22 (Linux) and Node 22 (Windows). The minimum
+supported Node version is declared in `engines` — don't use APIs newer than
+that without raising it deliberately.
+
+## Ground rules
+
+- **Zero runtime dependencies.** Everything in `src/` ships to npm with no
+  third-party packages. If you need a utility, write the minimal version
+  (see `src/cli/ui.ts` for the pattern). Dev dependencies are fine.
+- **Secret values never touch disk or logs.** No secret value may be written
+  to a file, echoed to stdout/stderr, embedded in an error message, or stored
+  in a snapshot. Masking helpers live in `src/schema/security.ts`. Tests
+  assert this — keep them passing and add the same assertions for new
+  surfaces.
+- **`src/runtime/` stays edge-safe.** Only `fetch` and standard globals — no
+  Node-specific imports. Node-only code belongs in `src/cli/`.
+- **Tests accompany behavior changes.** New commands, flags, or error paths
+  need tests in the matching `*.test.ts`. Coverage thresholds in
+  `vitest.config.ts` are floors — raise them when coverage grows, never
+  lower them to merge.
+- **CLI output conventions.** Write through the injected `ctx` streams (never
+  `console.*` — lint blocks it), use `ctx.ui` for status lines and spinners,
+  and keep stdout machine-readable (spinners render on stderr).
+
+## Releases
+
+Maintainers publish by creating a GitHub Release whose tag matches the
+package version; the release workflow re-verifies and publishes via npm
+Trusted Publishing. Contributors don't need to touch versioning.

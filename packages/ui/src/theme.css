@@ -37,6 +37,29 @@
   --font-mono:
     var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
+  /* Semantic surfaces — flip in dark mode (see below). Use these for the
+     page background/foreground so the base palette is theme-aware without a
+     `dark:` variant on every element. */
+  --color-bg: #ffffff;
+  --color-fg: var(--color-ink-900);
+
   --radius-xl: 0.875rem;
   --radius-2xl: 1.25rem;
+}
+
+/**
+ * Class-based dark mode, shared by every app via this import so each
+ * globals.css doesn't redeclare it. The shared ThemeProvider toggles
+ * `class="dark"` on <html>.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+.dark {
+  --color-bg: var(--color-ink-900);
+  --color-fg: var(--color-ink-100);
+  color-scheme: dark;
+}
+
+:root {
+  color-scheme: light;
 }

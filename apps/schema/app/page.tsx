@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { SCHEMA_ID, SCHEMA_VERSION } from "./v2/schema";
 
 const codeStyle = {
-  background: "#f4f4f5",
+  background: "light-dark(#f4f4f5, #18211c)",
   borderRadius: "6px",
   padding: "0.15rem 0.4rem",
   fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",

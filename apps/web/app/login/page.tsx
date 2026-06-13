@@ -9,9 +9,20 @@ export const metadata = {
   title: "Log in — Vaultlier",
 };
 
-export default async function LoginPage(): Promise<React.JSX.Element> {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ callbackUrl?: string }>;
+}): Promise<React.JSX.Element> {
+  const { callbackUrl } = await searchParams;
+  // Only honor same-origin relative paths to avoid open-redirects.
+  const redirectTo =
+    callbackUrl && callbackUrl.startsWith("/") && !callbackUrl.startsWith("//")
+      ? callbackUrl
+      : "/dashboard";
+
   const session = await auth();
-  if (session?.user) redirect("/dashboard");
+  if (session?.user) redirect(redirectTo);
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-ink-50 px-6">
@@ -27,7 +38,7 @@ export default async function LoginPage(): Promise<React.JSX.Element> {
           <form
             action={async () => {
               "use server";
-              await signIn("google", { redirectTo: "/dashboard" });
+              await signIn("google", { redirectTo });
             }}
           >
             <Button type="submit" variant="secondary" className="w-full">
@@ -38,7 +49,7 @@ export default async function LoginPage(): Promise<React.JSX.Element> {
           <form
             action={async () => {
               "use server";
-              await signIn("github", { redirectTo: "/dashboard" });
+              await signIn("github", { redirectTo });
             }}
           >
             <Button type="submit" variant="secondary" className="w-full">

@@ -38,11 +38,11 @@ export function maskSecret(value: string, prefixLength = 8): string {
  */
 export function redact<T>(input: T, seen = new WeakSet<object>()): T {
   if (input === null || typeof input !== "object") return input;
-  if (seen.has(input as object)) return input;
-  seen.add(input as object);
+  if (seen.has(input)) return input;
+  seen.add(input);
 
   if (Array.isArray(input)) {
-    return input.map((item) => redact(item, seen)) as unknown as T;
+    return input.map((item: unknown) => redact(item, seen)) as T;
   }
 
   const out: Record<string, unknown> = {};

@@ -10,10 +10,14 @@ const base =
   "focus-visible:ring-brand-400 focus-visible:ring-offset-2 disabled:opacity-50";
 
 const variants: Record<Variant, string> = {
-  primary: "bg-brand-600 text-white hover:bg-brand-700",
+  primary:
+    "bg-brand-600 text-white hover:bg-brand-700 dark:bg-brand-500 dark:hover:bg-brand-400 dark:text-ink-900",
   secondary:
-    "bg-white text-ink-800 border border-black/10 hover:bg-ink-50 shadow-sm",
-  ghost: "text-ink-700 hover:text-ink-900 hover:bg-ink-50",
+    "bg-white text-ink-800 border border-black/10 hover:bg-ink-50 shadow-sm " +
+    "dark:bg-white/5 dark:text-ink-100 dark:border-white/10 dark:hover:bg-white/10",
+  ghost:
+    "text-ink-700 hover:text-ink-900 hover:bg-ink-50 " +
+    "dark:text-ink-300 dark:hover:text-white dark:hover:bg-white/5",
 };
 
 const sizes: Record<Size, string> = {

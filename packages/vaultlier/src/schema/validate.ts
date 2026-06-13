@@ -49,7 +49,7 @@ export function validateConfig(input: unknown): ValidationResult {
     errors.push("`keys` must be an object");
   } else {
     for (const [name, schema] of Object.entries(cfg.keys)) {
-      validateKey(name, schema as VaultKeySchema, errors);
+      validateKey(name, schema, errors);
     }
   }
 

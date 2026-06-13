@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 
@@ -70,6 +71,14 @@ export function UserMenu({
             <p className="truncate text-xs text-ink-500">{email}</p>
           </div>
           <div className="my-1 border-t border-black/5" />
+          <Link
+            href="/dashboard/account"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="block w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-ink-700 hover:bg-ink-50"
+          >
+            Account &amp; devices
+          </Link>
           <form action={signOutAction}>
             <button
               type="submit"

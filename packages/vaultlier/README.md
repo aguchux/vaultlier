@@ -15,11 +15,101 @@ npx vaultlier init
 npx vaultlier pull --env=prod
 ```
 
-`init` writes two metadata-only artifacts - `vaultlier.json` (schema) and `lib/vaultlier.ts` (generated typed client). Existing projects may also use `vaultlier.config.json` for schema metadata.
+`init` walks a new developer through the whole setup: it installs the
+dependency if needed, offers a browser login when you have no account
+credentials yet, lets you pick an existing project with the arrow keys (or
+create a new one), and asks for an API key - **press Enter to skip** if you
+don't have one yet. It then writes two metadata-only artifacts -
+`vaultlier.json` (schema) and `lib/vaultlier.ts` (generated typed client).
+Existing projects may also use `vaultlier.config.json` for schema metadata.
+Fully non-interactive setup still works: `npx vaultlier init
+--project-id=<id> --api-key=<key>`.
+
+## Login and account
+
+```bash
+npx vaultlier login    # prints a URL + code; approve it in the browser
+npx vaultlier logout   # removes the locally stored account token
+```
+
+`login` uses the device-code flow: the CLI shows a verification link and a
+short code, you approve it in the browser, and the CLI receives an account
+token. The token is stored per-user in `~/.vaultlier/auth.json` (owner-only
+permissions), never inside a repository, and only authorizes account
+operations such as listing and creating projects - it is not a project API
+key and cannot read secrets.
+
+## Local configuration
+
+```bash
+npx vaultlier config set project=prj_29ec67d64dd1
+npx vaultlier config set apiKey=vlt_live_...
+npx vaultlier config get      # current settings, API key masked
+npx vaultlier config verify   # re-validates the project id + key with the portal
+```
+
+`config set project=...` updates `vaultlier.json` and regenerates the typed
+client; `config set apiKey=...` updates only the local credential cache and
+never prints the key back. You can skip storing a key entirely and set
+`VAULTLIER_API_KEY` in the environment instead - the CLI and runtime resolve
+it automatically.
 
 `pull`, `push`, and `diff` sync schema **metadata** (key names, types, scopes, environments - never values) with the Vaultlier portal using your API key. The portal base URL can be overridden with `--api-url=<url>` or `VAULTLIER_API_URL` for self-hosted deployments. Without an API key, `pull` falls back to regenerating from local metadata.
 
 Generated config includes a `$schema` reference to `https://schema.vaultlier.com/v2/vaultlier.schema.json` for editor validation. **No secret values are written to disk.**
+
+## Set secret values
+
+```bash
+npx vaultlier set DATABASE_URL=postgres://prod-db/main --env=prod
+npx vaultlier set STRIPE_SECRET=sk_live_... FEATURE_NEW_FLOW=true -e prod
+```
+
+`set` writes one or more `KEY=VALUE` pairs to a single environment. Keys must
+already exist in the schema (`vaultlier push` first) and be scoped to the
+target environment - both are checked locally before any value leaves your
+machine. Values are sealed server-side as new immutable versions; the CLI
+prints the new version numbers and never echoes the values back. Requires an
+API key with the member role or higher.
+
+If the target environment does not exist yet, `set` offers to create it (pass
+`--yes` to skip the prompt, e.g. in CI):
+
+```bash
+npx vaultlier set DATABASE_URL=postgres://wip-db --env=working --yes
+```
+
+This declares the environment through an additive schema push (nothing is
+deleted), adopts the synced schema into `vaultlier.json`, then writes the
+values against the new environment. An environment that exists locally but not
+in the portal is synced the same way automatically.
+
+## CLI output
+
+Commands print status-prefixed lines (check/warning/cross) and show a spinner
+while talking to the portal. Styling is zero-dependency and degrades
+gracefully: colors and the spinner activate only on an interactive terminal
+and are suppressed when output is piped or `CI` is set, so logs stay plain.
+`NO_COLOR` disables colors; `FORCE_COLOR` forces them. Spinners render on
+stderr, keeping stdout clean for scripting.
+
+## CLI flag conventions
+
+Every value flag has a canonical `--kebab-case` long form; common ones also
+have a single-letter short form. Both `--flag=value` and `--flag value` work.
+
+| Short | Long           | Aliases                  | Used by                        |
+| ----- | -------------- | ------------------------ | ------------------------------ |
+| `-e`  | `--env`        | `--environment`          | `pull`, `push`, `diff`, `set`  |
+| `-k`  | `--api-key`    | `--apiKey`               | all portal commands            |
+|       | `--api-url`    | `--apiUrl`               | all portal commands            |
+|       | `--project-id` | `--projectId`            | `init`                         |
+| `-p`  | `--port`       |                          | `dev`                          |
+| `-o`  | `--output`     |                          | `--generate`, `--generate-env` |
+| `-g`  | `--generate`   |                          | standalone                     |
+| `-y`  | `--yes`        |                          | prompts                        |
+| `-f`  | `--force`      |                          | `init`, generated `.env`       |
+| `-h`  | `--help`       |                          | everywhere                     |
 
 ## Inspect your config locally
 

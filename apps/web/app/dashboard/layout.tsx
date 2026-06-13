@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { Bell } from "lucide-react";
 import { Logo } from "@repo/ui/logo";
+import { ThemeToggle } from "@repo/ui/theme-toggle";
 import { signOut } from "../../lib/auth";
 import { getUserOrgs, requireUser } from "../../lib/tenancy";
 import { DashboardNav } from "./dashboard-nav";
@@ -36,9 +37,9 @@ export default async function DashboardLayout({
   );
 
   return (
-    <div className="min-h-screen bg-ink-50/70 text-ink-900">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-black/5 bg-white lg:flex">
-        <div className="flex h-[74px] items-center border-b border-black/5 px-7">
+    <div className="min-h-screen bg-ink-50/70 text-ink-900 dark:bg-ink-900 dark:text-ink-100">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-black/5 bg-white lg:flex dark:border-white/10 dark:bg-white/[0.03]">
+        <div className="flex h-[74px] items-center border-b border-black/5 px-7 dark:border-white/10">
           <Link href="/dashboard" aria-label="Vaultlier dashboard">
             <Logo />
           </Link>
@@ -62,7 +63,7 @@ export default async function DashboardLayout({
       </aside>
 
       <div className="lg:pl-64">
-        <header className="sticky top-0 z-20 border-b border-black/5 bg-white/95 backdrop-blur">
+        <header className="sticky top-0 z-20 border-b border-black/5 bg-white/95 backdrop-blur dark:border-white/10 dark:bg-ink-900/90">
           <div className="flex min-h-[74px] items-center gap-3 px-4 sm:px-6 lg:px-8">
             <Link
               href="/dashboard"
@@ -90,11 +91,12 @@ export default async function DashboardLayout({
             <button
               type="button"
               aria-label="Notifications"
-              className="relative hidden h-10 w-10 items-center justify-center rounded-xl text-ink-500 hover:bg-ink-50 hover:text-ink-900 sm:inline-flex"
+              className="relative hidden h-10 w-10 items-center justify-center rounded-xl text-ink-500 hover:bg-ink-50 hover:text-ink-900 sm:inline-flex dark:text-ink-400 dark:hover:bg-white/5 dark:hover:text-white"
             >
               <Bell className="h-5 w-5" />
-              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-brand-500 ring-2 ring-white" />
+              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-brand-500 ring-2 ring-white dark:ring-ink-900" />
             </button>
+            <ThemeToggle className="h-10 w-10" />
             <UserMenu
               name={user.name}
               email={user.email}
@@ -102,7 +104,7 @@ export default async function DashboardLayout({
               signOutAction={signOutAction}
             />
           </div>
-          <div className="border-t border-black/5 px-3 lg:hidden">
+          <div className="border-t border-black/5 px-3 lg:hidden dark:border-white/10">
             <Suspense fallback={<div className="h-12" />}>
               <DashboardNav mobile />
             </Suspense>

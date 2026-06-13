@@ -66,7 +66,11 @@ export class PortalApiError extends Error {
 
 export interface PortalClientOptions {
   apiUrl: string;
-  apiKey: string;
+  /**
+   * Bearer credential: a project API key (vlt_...) or an account token from
+   * `vaultlier login`. Omit for unauthenticated endpoints (login start/poll).
+   */
+  apiKey?: string;
   fetchImpl?: FetchLike;
 }
 
@@ -106,6 +110,44 @@ export function pushPortalSchema(
   });
 }
 
+/** Result of a secret write: new version number per key. Never values. */
+export interface SecretWriteResult {
+  environment: string;
+  versions: Record<string, number>;
+}
+
+/**
+ * PUT secret values for one environment (`vaultlier set`). Values travel in
+ * the request body over HTTPS; the response carries version numbers only,
+ * and nothing here logs or stores the values.
+ */
+export async function putEnvironmentSecrets(
+  options: PortalClientOptions,
+  projectId: string,
+  environment: string,
+  secrets: Record<string, string>,
+): Promise<SecretWriteResult> {
+  const payload = await requestJson(options, {
+    method: "PUT",
+    path: `/v1/projects/${encodeURIComponent(projectId)}/secrets`,
+    body: { environment, secrets },
+  });
+  const result = payload as Partial<SecretWriteResult> | null;
+  if (
+    result === null ||
+    typeof result !== "object" ||
+    typeof result.environment !== "string" ||
+    result.versions === null ||
+    typeof result.versions !== "object"
+  ) {
+    throw new PortalApiError(
+      "response/invalid",
+      "portal returned an unexpected secrets payload",
+    );
+  }
+  return { environment: result.environment, versions: result.versions };
+}
+
 /**
  * GET the decrypted key/value map for one environment (`vaultlier dev` uses
  * this for the local "dev" environment only). Unlike the schema endpoints,
@@ -135,6 +177,170 @@ export async function fetchEnvironmentConfig(
   return payload as Record<string, unknown>;
 }
 
+// ---------------------------------------------------------------------------
+// Account endpoints (device-code login, project list/create)
+//
+// Wire protocol the portal implements:
+//   POST /v1/cli/sessions            {}              -> CliLoginSession
+//   GET  /v1/cli/sessions/:sessionId                 -> CliLoginPoll
+//   GET  /v1/projects                (account token) -> { projects: [...] }
+//   POST /v1/projects                { name }        -> ProjectSummary
+//
+// The login flow follows the OAuth device-code pattern: the CLI starts a
+// session, shows the user a URL + short code, and polls until the user
+// approves it in their browser. The returned account token authorizes
+// project listing/creation only — it is not a project API key.
+// ---------------------------------------------------------------------------
+
+export interface CliLoginSession {
+  sessionId: string;
+  /** Short human-verifiable code shown in the CLI and the browser. */
+  userCode: string;
+  /** Page where the user signs in and approves this CLI session. */
+  verificationUrl: string;
+  expiresInSeconds: number;
+  pollIntervalSeconds: number;
+}
+
+export type CliLoginPoll =
+  | { status: "pending" }
+  | { status: "approved"; token: string; email?: string }
+  | { status: "denied" }
+  | { status: "expired" };
+
+export interface ProjectSummary {
+  publicId: string;
+  name: string;
+  organization?: string;
+}
+
+/** Start a device-code login session. Unauthenticated. */
+export async function startCliLogin(
+  options: PortalClientOptions,
+): Promise<CliLoginSession> {
+  const payload = await requestJson(
+    { ...options, apiKey: undefined },
+    { method: "POST", path: "/v1/cli/sessions", body: {} },
+  );
+  const session = payload as Partial<CliLoginSession> | null;
+  if (
+    session === null ||
+    typeof session !== "object" ||
+    typeof session.sessionId !== "string" ||
+    typeof session.userCode !== "string" ||
+    typeof session.verificationUrl !== "string"
+  ) {
+    throw new PortalApiError(
+      "response/invalid",
+      "portal returned an unexpected login session payload",
+    );
+  }
+  return {
+    sessionId: session.sessionId,
+    userCode: session.userCode,
+    verificationUrl: session.verificationUrl,
+    expiresInSeconds:
+      typeof session.expiresInSeconds === "number"
+        ? session.expiresInSeconds
+        : 900,
+    pollIntervalSeconds:
+      typeof session.pollIntervalSeconds === "number"
+        ? session.pollIntervalSeconds
+        : 5,
+  };
+}
+
+/** Poll a device-code login session. Unauthenticated. */
+export async function pollCliLogin(
+  options: PortalClientOptions,
+  sessionId: string,
+): Promise<CliLoginPoll> {
+  const payload = await requestJson(
+    { ...options, apiKey: undefined },
+    {
+      method: "GET",
+      path: `/v1/cli/sessions/${encodeURIComponent(sessionId)}`,
+    },
+  );
+  const poll = payload as Partial<CliLoginPoll> | null;
+  if (poll === null || typeof poll !== "object") {
+    throw new PortalApiError(
+      "response/invalid",
+      "portal returned an unexpected login poll payload",
+    );
+  }
+  if (poll.status === "approved") {
+    const approved = poll as { token?: unknown; email?: unknown };
+    if (typeof approved.token !== "string" || approved.token.length === 0) {
+      throw new PortalApiError(
+        "response/invalid",
+        "portal approved the login but returned no token",
+      );
+    }
+    return {
+      status: "approved",
+      token: approved.token,
+      email: typeof approved.email === "string" ? approved.email : undefined,
+    };
+  }
+  if (
+    poll.status === "pending" ||
+    poll.status === "denied" ||
+    poll.status === "expired"
+  ) {
+    return { status: poll.status };
+  }
+  throw new PortalApiError(
+    "response/invalid",
+    "portal returned an unknown login session status",
+  );
+}
+
+/** List the projects the authenticated account can access. */
+export async function listProjects(
+  options: PortalClientOptions,
+): Promise<ProjectSummary[]> {
+  const payload = await requestJson(options, {
+    method: "GET",
+    path: "/v1/projects",
+  });
+  const body = payload as { projects?: unknown } | null;
+  if (body === null || typeof body !== "object" || !Array.isArray(body.projects)) {
+    throw new PortalApiError(
+      "response/invalid",
+      "portal returned an unexpected project list payload",
+    );
+  }
+  return body.projects.filter(isProjectSummary);
+}
+
+/** Create a new project owned by the authenticated account. */
+export async function createProject(
+  options: PortalClientOptions,
+  name: string,
+): Promise<ProjectSummary> {
+  const payload = await requestJson(options, {
+    method: "POST",
+    path: "/v1/projects",
+    body: { name },
+  });
+  if (!isProjectSummary(payload)) {
+    throw new PortalApiError(
+      "response/invalid",
+      "portal returned an unexpected project payload",
+    );
+  }
+  return payload;
+}
+
+function isProjectSummary(value: unknown): value is ProjectSummary {
+  if (value === null || typeof value !== "object") return false;
+  const project = value as Partial<ProjectSummary>;
+  return (
+    typeof project.publicId === "string" && typeof project.name === "string"
+  );
+}
+
 async function request(
   options: PortalClientOptions,
   params: { method: string; path: string; body?: unknown },
@@ -154,8 +360,7 @@ async function requestJson(
   options: PortalClientOptions,
   params: { method: string; path: string; body?: unknown },
 ): Promise<unknown> {
-  const fetchImpl =
-    options.fetchImpl ?? (globalThis.fetch as unknown as FetchLike);
+  const fetchImpl = options.fetchImpl ?? globalThis.fetch;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -164,7 +369,9 @@ async function requestJson(
     res = await fetchImpl(`${options.apiUrl}${params.path}`, {
       method: params.method,
       headers: {
-        authorization: `Bearer ${options.apiKey}`,
+        ...(options.apiKey !== undefined
+          ? { authorization: `Bearer ${options.apiKey}` }
+          : {}),
         accept: "application/json",
         ...(params.body !== undefined
           ? { "content-type": "application/json" }
@@ -223,7 +430,7 @@ function parsePortalSchema(payload: unknown): PortalSchema | undefined {
     environments: doc.environments.filter(
       (name): name is string => typeof name === "string",
     ),
-    keys: doc.keys as Record<string, VaultKeySchema>,
+    keys: doc.keys,
   };
 }
 

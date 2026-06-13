@@ -12,7 +12,7 @@ export function Logo({
     <span className={cn("inline-flex items-center gap-2.5", className)}>
       <ShieldMark className="h-8 w-8 text-brand-600" />
       {showWordmark ? (
-        <span className="text-xl font-bold tracking-tight text-ink-900">
+        <span className="text-xl font-bold tracking-tight text-ink-900 dark:text-white">
           Vaultlier
         </span>
       ) : null}
