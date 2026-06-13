@@ -7,6 +7,7 @@ import { prisma } from "@repo/db";
 import type { Role } from "@repo/db";
 import { logAudit } from "../../lib/audit";
 import { canInviteRole } from "../../lib/rbac";
+import { organizationDeletionBlockers } from "../../lib/resource-policy";
 import {
   canManageOrganization,
   canManageRole,
@@ -17,6 +18,14 @@ import {
 
 const MEMBER_ROLES = new Set<Role>(["ADMIN", "MEMBER", "VIEWER"]);
 const INVITE_TTL_DAYS = 14;
+
+function readDescription(formData: FormData): string | null {
+  const description = String(formData.get("description") ?? "").trim();
+  if (description.length > 500) {
+    throw new Error("Organization description cannot exceed 500 characters.");
+  }
+  return description || null;
+}
 
 function readRole(value: FormDataEntryValue | null): Role {
   const role = String(value ?? "MEMBER") as Role;
@@ -36,6 +45,7 @@ function revalidateOrganization(organizationId: string): void {
 export async function createOrganization(formData: FormData): Promise<void> {
   const user = await requireUser();
   const name = String(formData.get("name") ?? "").trim();
+  const description = readDescription(formData);
   if (name.length < 2 || name.length > 80) {
     throw new Error("Organization name must be between 2 and 80 characters.");
   }
@@ -45,6 +55,7 @@ export async function createOrganization(formData: FormData): Promise<void> {
     const created = await tx.organization.create({
       data: {
         name,
+        description,
         slug,
         memberships: { create: { userId: user.id, role: "OWNER" } },
       },
@@ -54,7 +65,7 @@ export async function createOrganization(formData: FormData): Promise<void> {
         action: "ORGANIZATION_CREATED",
         userId: user.id,
         organizationId: created.id,
-        metadata: { name, slug },
+        metadata: { name, slug, hasDescription: Boolean(description) },
       },
       tx,
     );
@@ -79,6 +90,7 @@ export async function renameOrganization(
   }
 
   const name = String(formData.get("name") ?? "").trim();
+  const description = readDescription(formData);
   if (name.length < 2 || name.length > 80) {
     throw new Error("Organization name must be between 2 and 80 characters.");
   }
@@ -86,19 +98,78 @@ export async function renameOrganization(
   await prisma.$transaction(async (tx) => {
     await tx.organization.update({
       where: { id: organizationId },
-      data: { name },
+      data: { name, description },
     });
     await logAudit(
       {
         action: "ORGANIZATION_UPDATED",
         userId: user.id,
         organizationId,
-        metadata: { from: organization.name, to: name },
+        metadata: {
+          from: organization.name,
+          to: name,
+          descriptionUpdated: organization.description !== description,
+        },
       },
       tx,
     );
   });
   revalidateOrganization(organizationId);
+}
+
+export async function deleteOrganization(
+  organizationId: string,
+  formData: FormData,
+): Promise<void> {
+  const user = await requireUser();
+  const { organization, role } = await requireOrganizationAccess(
+    user.id,
+    organizationId,
+  );
+  if (role !== "OWNER") {
+    throw new Error("Only the organization owner can delete an organization.");
+  }
+  const confirmation = String(formData.get("confirmation") ?? "");
+  if (confirmation !== organization.name) {
+    throw new Error("Organization name confirmation did not match.");
+  }
+
+  const [projectCount, memberCount, pendingInvitationCount] = await Promise.all(
+    [
+      prisma.project.count({ where: { organizationId } }),
+      prisma.membership.count({ where: { organizationId } }),
+      prisma.organizationInvitation.count({
+        where: { organizationId, acceptedAt: null },
+      }),
+    ],
+  );
+  const blockers = organizationDeletionBlockers({
+    projectCount,
+    memberCount,
+    pendingInvitationCount,
+  });
+  if (blockers.length > 0) {
+    throw new Error(
+      `This organization cannot be deleted while it has ${blockers.join(", ")}.`,
+    );
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await logAudit(
+      {
+        action: "ORGANIZATION_DELETED",
+        userId: user.id,
+        organizationId,
+        metadata: { organizationId, name: organization.name },
+      },
+      tx,
+    );
+    await tx.organization.delete({ where: { id: organizationId } });
+  });
+
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/organizations");
+  redirect("/dashboard/organizations");
 }
 
 export async function inviteOrganizationMember(

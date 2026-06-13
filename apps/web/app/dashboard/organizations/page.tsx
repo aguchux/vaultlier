@@ -1,6 +1,7 @@
-import { Mail, Plus, Shield, Trash2, UserPlus, Users } from "lucide-react";
+import { Mail, Shield, Trash2, UserPlus, Users } from "lucide-react";
 import { prisma } from "@repo/db";
 import { Card } from "@repo/ui/card";
+import { organizationDeletionBlockers } from "../../../lib/resource-policy";
 import {
   canManageOrganization,
   canManageRole,
@@ -8,11 +9,15 @@ import {
 } from "../../../lib/tenancy";
 import {
   createOrganization,
+  deleteOrganization,
   inviteOrganizationMember,
   removeOrganizationMember,
+  renameOrganization,
   revokeOrganizationInvitation,
   updateOrganizationMemberRole,
 } from "../organization-actions";
+import { OrganizationCreateButton } from "../organization-create-dialog";
+import { OrganizationCrudDialogs } from "../organization-crud-dialogs";
 
 type SearchParams = Promise<{ organizationId?: string }>;
 
@@ -56,6 +61,11 @@ export default async function OrganizationsPage({
     selected.memberships.find((membership) => membership.userId === user.id)
       ?.role ?? "VIEWER";
   const canManage = canManageOrganization(actorRole);
+  const deletionBlockers = organizationDeletionBlockers({
+    projectCount: selected._count.projects,
+    memberCount: selected.memberships.length,
+    pendingInvitationCount: selected.invitations.length,
+  });
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -66,32 +76,7 @@ export default async function OrganizationsPage({
             Manage organization members and role-based access.
           </p>
         </div>
-        <details className="group relative">
-          <summary className="flex h-10 cursor-pointer list-none items-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-medium text-white hover:bg-brand-700 [&::-webkit-details-marker]:hidden">
-            <Plus className="h-4 w-4" /> Create organisation
-          </summary>
-          <form
-            action={createOrganization}
-            className="absolute right-0 top-12 z-10 w-80 rounded-2xl border border-black/10 bg-white p-4 shadow-xl"
-          >
-            <label className="text-sm font-medium">
-              Organisation name
-              <input
-                name="name"
-                minLength={2}
-                required
-                placeholder="Acme Corporation"
-                className="mt-2 h-10 w-full rounded-xl border border-black/10 px-3 text-sm outline-none focus:border-brand-300 focus:ring-2 focus:ring-brand-100"
-              />
-            </label>
-            <button
-              type="submit"
-              className="mt-3 h-10 w-full rounded-xl bg-brand-600 text-sm font-medium text-white hover:bg-brand-700"
-            >
-              Create organisation
-            </button>
-          </form>
-        </details>
+        <OrganizationCreateButton action={createOrganization} />
       </div>
 
       <div className="grid items-start gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
@@ -131,12 +116,42 @@ export default async function OrganizationsPage({
                     {selected.plan.toLowerCase()} plan - your role:{" "}
                     {actorRole.toLowerCase()}
                   </p>
+                  {selected.description ? (
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-500">
+                      {selected.description}
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-sm italic text-ink-400">
+                      No description provided.
+                    </p>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center gap-2 rounded-xl bg-brand-50 px-3 py-2 text-xs font-medium text-brand-700">
-                <Shield className="h-4 w-4" /> Organization-scoped RBAC
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 rounded-xl bg-brand-50 px-3 py-2 text-xs font-medium text-brand-700">
+                  <Shield className="h-4 w-4" /> Organization-scoped RBAC
+                </div>
+                <OrganizationCrudDialogs
+                  organization={{
+                    name: selected.name,
+                    description: selected.description,
+                  }}
+                  canUpdate={canManage}
+                  canDelete={
+                    actorRole === "OWNER" && deletionBlockers.length === 0
+                  }
+                  deletionBlockers={deletionBlockers}
+                  updateAction={renameOrganization.bind(null, selected.id)}
+                  deleteAction={deleteOrganization.bind(null, selected.id)}
+                />
               </div>
             </div>
+            {actorRole === "OWNER" && deletionBlockers.length > 0 ? (
+              <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                Deletion is locked until you remove:{" "}
+                {deletionBlockers.join(", ")}.
+              </p>
+            ) : null}
           </Card>
 
           {canManage ? (

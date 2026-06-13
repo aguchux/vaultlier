@@ -43,9 +43,9 @@ export default async function OrganizationSettingsPage({
         </h2>
         <form
           action={renameOrganization.bind(null, selected.id)}
-          className="mt-5 flex flex-wrap items-end gap-3"
+          className="mt-5 space-y-4"
         >
-          <label className="min-w-64 flex-1 text-sm font-medium">
+          <label className="block text-sm font-medium">
             Organization name
             <input
               name="name"
@@ -54,6 +54,18 @@ export default async function OrganizationSettingsPage({
               defaultValue={selected.name}
               disabled={!canManage}
               className="mt-2 h-10 w-full rounded-xl border border-black/10 px-3 text-sm font-normal outline-none focus:border-brand-300 focus:ring-2 focus:ring-brand-100 disabled:bg-ink-50"
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            Description
+            <textarea
+              name="description"
+              maxLength={500}
+              rows={4}
+              defaultValue={selected.description ?? ""}
+              disabled={!canManage}
+              placeholder="What this organisation owns and who it serves."
+              className="mt-2 w-full resize-none rounded-xl border border-black/10 px-3 py-2.5 text-sm font-normal outline-none focus:border-brand-300 focus:ring-2 focus:ring-brand-100 disabled:bg-ink-50"
             />
           </label>
           <button

@@ -1,8 +1,15 @@
 import Link from "next/link";
-import { Cloud, Folder } from "lucide-react";
+import { Folder } from "lucide-react";
 import { prisma } from "@repo/db";
 import { Card } from "@repo/ui/card";
-import { requireUser } from "../../../lib/tenancy";
+import { environmentDeletionBlockers } from "../../../lib/resource-policy";
+import { canManageProject, requireUser } from "../../../lib/tenancy";
+import {
+  createEnvironment,
+  deleteEnvironment,
+  updateEnvironment,
+} from "../environment-actions";
+import { EnvironmentManager } from "../environment-manager";
 
 type SearchParams = Promise<{ organizationId?: string }>;
 
@@ -17,15 +24,24 @@ export default async function EnvironmentsPage({
     where: { memberships: { some: { userId: user.id } } },
     orderBy: { createdAt: "asc" },
     include: {
+      memberships: { where: { userId: user.id }, select: { role: true } },
       projects: {
         orderBy: { name: "asc" },
-        include: { environments: { orderBy: { createdAt: "asc" } } },
+        include: {
+          environments: {
+            orderBy: { createdAt: "asc" },
+            include: { _count: { select: { keyVersions: true } } },
+          },
+          keys: { select: { scopes: true } },
+        },
       },
     },
   });
   const selected =
     organizations.find((org) => org.id === organizationId) ?? organizations[0];
   if (!selected) return <div />;
+  const role = selected.memberships[0]?.role ?? "VIEWER";
+  const canManage = canManageProject(role);
   const total = selected.projects.reduce(
     (sum, project) => sum + project.environments.length,
     0,
@@ -36,12 +52,17 @@ export default async function EnvironmentsPage({
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Environments</h1>
         <p className="mt-1 text-sm text-ink-500">
-          Environment metadata for every project in {selected.name}.
+          Add, rename, and remove project environments in {selected.name}.
         </p>
       </div>
       <Card className="overflow-hidden border-black/10 shadow-none">
         <div className="flex items-center justify-between border-b border-black/5 px-6 py-4">
-          <h2 className="font-semibold">{selected.name}</h2>
+          <div>
+            <h2 className="font-semibold">{selected.name}</h2>
+            <p className="mt-1 text-xs text-ink-400">
+              Environment changes increment the project schema version.
+            </p>
+          </div>
           <span className="text-sm text-ink-500">{total} environments</span>
         </div>
         <div className="divide-y divide-black/5">
@@ -66,20 +87,25 @@ export default async function EnvironmentsPage({
                   </span>
                 </span>
               </Link>
-              <div className="flex flex-wrap gap-2">
-                {project.environments.map((environment) => (
-                  <span
-                    key={environment.id}
-                    className="inline-flex items-center gap-2 rounded-xl border border-black/5 bg-ink-50 px-3 py-2 text-sm"
-                  >
-                    <Cloud className="h-4 w-4 text-brand-600" />
-                    {environment.name}
-                  </span>
-                ))}
-                {project.environments.length === 0 ? (
-                  <span className="text-sm text-ink-400">No environments.</span>
-                ) : null}
-              </div>
+              <EnvironmentManager
+                environments={project.environments.map((environment) => {
+                  const scopedKeyCount = project.keys.filter((key) =>
+                    key.scopes.includes(environment.name),
+                  ).length;
+                  return {
+                    id: environment.id,
+                    name: environment.name,
+                    deletionBlockers: environmentDeletionBlockers({
+                      keyVersionCount: environment._count.keyVersions,
+                      scopedKeyCount,
+                    }),
+                  };
+                })}
+                canManage={canManage}
+                createAction={createEnvironment.bind(null, project.id)}
+                updateAction={updateEnvironment.bind(null, project.id)}
+                deleteAction={deleteEnvironment.bind(null, project.id)}
+              />
             </div>
           ))}
           {selected.projects.length === 0 ? (

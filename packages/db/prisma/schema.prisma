@@ -93,12 +93,13 @@ model VerificationToken {
 }
 
 model Organization {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
-  plan      Plan     @default(HOBBY)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  slug        String   @unique
+  plan        Plan     @default(HOBBY)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   memberships Membership[]
   invitations OrganizationInvitation[]
@@ -176,6 +177,7 @@ model Environment {
   // e.g. "dev", "staging", "prod" or a custom name.
   name      String
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   keyVersions KeyVersion[]
@@ -331,4 +333,7 @@ enum AuditAction {
   MEMBER_REMOVED
   INVITATION_REVOKED
   ORGANIZATION_UPDATED
+  ORGANIZATION_DELETED
+  ENVIRONMENT_UPDATED
+  ENVIRONMENT_DELETED
 }

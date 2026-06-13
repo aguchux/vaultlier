@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { Bell, ChevronDown } from "lucide-react";
+import { Bell } from "lucide-react";
 import { Logo } from "@repo/ui/logo";
 import { signOut } from "../../lib/auth";
 import { getUserOrgs, requireUser } from "../../lib/tenancy";
@@ -8,6 +8,12 @@ import { DashboardNav } from "./dashboard-nav";
 import { DashboardSearch } from "./dashboard-search";
 import { createOrganization } from "./organization-actions";
 import { OrganizationSwitcher } from "./organization-switcher";
+import { UserMenu } from "./user-menu";
+
+async function signOutAction(): Promise<void> {
+  "use server";
+  await signOut({ redirectTo: "/" });
+}
 
 export const metadata = {
   title: "Dashboard - Vaultlier",
@@ -89,45 +95,12 @@ export default async function DashboardLayout({
               <Bell className="h-5 w-5" />
               <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-brand-500 ring-2 ring-white" />
             </button>
-            <details className="group relative">
-              <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl p-1.5 hover:bg-ink-50 [&::-webkit-details-marker]:hidden">
-                {user.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- OAuth avatar URL is user-provided.
-                  <img
-                    src={user.image}
-                    alt=""
-                    className="h-8 w-8 rounded-full border border-black/10 object-cover"
-                  />
-                ) : (
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-ink-900 text-xs font-semibold text-white">
-                    {(user.name ?? user.email).slice(0, 2).toUpperCase()}
-                  </span>
-                )}
-                <ChevronDown className="hidden h-4 w-4 text-ink-400 sm:block" />
-              </summary>
-              <div className="absolute right-0 top-12 w-60 rounded-2xl border border-black/10 bg-white p-2 shadow-xl">
-                <div className="px-3 py-2">
-                  <p className="truncate text-sm font-semibold">
-                    {user.name ?? "Vaultlier user"}
-                  </p>
-                  <p className="truncate text-xs text-ink-500">{user.email}</p>
-                </div>
-                <div className="my-1 border-t border-black/5" />
-                <form
-                  action={async () => {
-                    "use server";
-                    await signOut({ redirectTo: "/" });
-                  }}
-                >
-                  <button
-                    type="submit"
-                    className="w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-ink-700 hover:bg-ink-50"
-                  >
-                    Sign out
-                  </button>
-                </form>
-              </div>
-            </details>
+            <UserMenu
+              name={user.name}
+              email={user.email}
+              image={user.image}
+              signOutAction={signOutAction}
+            />
           </div>
           <div className="border-t border-black/5 px-3 lg:hidden">
             <Suspense fallback={<div className="h-12" />}>
