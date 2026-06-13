@@ -114,6 +114,109 @@ describe("createClient", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
+  it("deduplicates concurrent reads for the same environment and API key", async () => {
+    let resolveResponse: ((value: unknown) => void) | undefined;
+    const fetchMock = stubFetch(
+      () =>
+        new Promise((resolve) => {
+          resolveResponse = resolve;
+        }),
+    );
+    const vault = createClient({ projectId, baseUrl: "https://portal.test" });
+
+    const first = vault({ environment: "prod", apiKey });
+    const second = vault({ environment: "prod", apiKey });
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    resolveResponse?.(fakeResponse({ body: { A: "1" } }));
+
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      { A: "1" },
+      { A: "1" },
+    ]);
+  });
+
+  it("expires cached values after cacheTtlMs", async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchMock = stubFetch(async () =>
+        fakeResponse({ body: { A: "1" } }),
+      );
+      const vault = createClient({ projectId, baseUrl: "https://portal.test" });
+
+      await vault({ environment: "prod", apiKey, cacheTtlMs: 1_000 });
+      await vault({ environment: "prod", apiKey, cacheTtlMs: 1_000 });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(1_001);
+      await vault({ environment: "prod", apiKey, cacheTtlMs: 1_000 });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("honors a stricter TTL than the one used to populate the cache", async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchMock = stubFetch(async () =>
+        fakeResponse({ body: { A: "1" } }),
+      );
+      const vault = createClient({ projectId, baseUrl: "https://portal.test" });
+
+      await vault({ environment: "prod", apiKey, cacheTtlMs: 60_000 });
+      await vi.advanceTimersByTimeAsync(15_001);
+      await vault({ environment: "prod", apiKey, cacheTtlMs: 15_000 });
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("partitions cached values by API key", async () => {
+    const secondApiKey = "vlt_live_fedcba9876543210";
+    const fetchMock = stubFetch(async (_url, init) => {
+      const authorization = (init?.headers as Record<string, string>)
+        .authorization;
+      return fakeResponse({ body: { authorization } });
+    });
+    const vault = createClient<{ authorization: string }>({
+      projectId,
+      baseUrl: "https://portal.test",
+    });
+
+    const first = await vault({ environment: "prod", apiKey });
+    const second = await vault({ environment: "prod", apiKey: secondApiKey });
+
+    expect(first.authorization).toBe(`Bearer ${apiKey}`);
+    expect(second.authorization).toBe(`Bearer ${secondApiKey}`);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not return cached values when a later call has no API key", async () => {
+    vi.stubEnv("VAULTLIER_API_KEY", "");
+    stubFetch(async () => fakeResponse({ body: { A: "1" } }));
+    const vault = createClient({ projectId, baseUrl: "https://portal.test" });
+
+    await vault({ environment: "prod", apiKey });
+
+    await expect(vault({ environment: "prod" })).rejects.toMatchObject({
+      code: "auth/missing_api_key",
+    });
+  });
+
+  it("rejects invalid cache TTL values", async () => {
+    const vault = createClient({ projectId, baseUrl: "https://portal.test" });
+
+    await expect(
+      vault({
+        environment: "prod",
+        apiKey,
+        cacheTtlMs: Number.POSITIVE_INFINITY,
+      }),
+    ).rejects.toMatchObject({ code: "cache/invalid_ttl" });
+  });
+
   it("maps HTTP failures to coded errors carrying the request id", async () => {
     stubFetch(async () =>
       fakeResponse({ status: 403, requestId: "req_test_9" }),

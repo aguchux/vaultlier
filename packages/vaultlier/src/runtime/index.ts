@@ -16,8 +16,10 @@ export interface VaultOptions {
   environment: "dev" | "staging" | "prod" | (string & {});
   /** Explicit API key. Takes precedence over the environment variable. */
   apiKey?: string;
-  /** `"memory"` caches the resolved config for the client's lifetime. */
+  /** `"memory"` caches resolved config in this process. Defaults to memory. */
   cache?: "memory" | "none";
+  /** Memory-cache lifetime in milliseconds. Defaults to 60000. */
+  cacheTtlMs?: number;
   /** Request timeout in milliseconds. Defaults to 10000. */
   timeoutMs?: number;
 }
@@ -30,6 +32,14 @@ export interface ClientConfig {
 
 const DEFAULT_BASE_URL = "https://api.vaultlier.com";
 const DEFAULT_TIMEOUT_MS = 10_000;
+const DEFAULT_CACHE_TTL_MS = 60_000;
+const MAX_CACHE_ENTRIES = 64;
+
+interface CacheEntry<Schema> {
+  value: Schema;
+  cachedAt: number;
+  expiresAt: number;
+}
 
 /** Resolved client function: call with options, receive typed config. */
 export type VaultClient<Schema> = (opts: VaultOptions) => Promise<Schema>;
@@ -48,14 +58,10 @@ export function createClient<Schema>(
   config: ClientConfig,
 ): VaultClient<Schema> {
   const baseUrl = (config.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, "");
-  const memoryCache = new Map<string, Schema>();
+  const memoryCache = new Map<string, CacheEntry<Schema>>();
+  const inFlight = new Map<string, Promise<Schema>>();
 
   return async (opts: VaultOptions): Promise<Schema> => {
-    const useCache = opts.cache !== "none";
-    if (useCache && memoryCache.has(opts.environment)) {
-      return memoryCache.get(opts.environment) as Schema;
-    }
-
     const apiKey = resolveApiKey(opts.apiKey);
     if (!apiKey) {
       throw new VaultlierRuntimeError(
@@ -72,17 +78,85 @@ export function createClient<Schema>(
       );
     }
 
-    const result = await fetchConfig<Schema>({
+    const useCache = opts.cache !== "none";
+    if (!useCache) {
+      return fetchConfig<Schema>({
+        baseUrl,
+        projectId: config.projectId,
+        environment: opts.environment,
+        apiKey,
+        timeoutMs: opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      });
+    }
+
+    const cacheTtlMs = opts.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS;
+    if (!Number.isFinite(cacheTtlMs) || cacheTtlMs < 0) {
+      throw new VaultlierRuntimeError(
+        "cache/invalid_ttl",
+        "cacheTtlMs must be a finite, non-negative number.",
+      );
+    }
+
+    const cacheKey = `${opts.environment}:${await fingerprintApiKey(apiKey)}`;
+    const now = Date.now();
+    pruneExpiredEntries(memoryCache, now);
+    const cached = memoryCache.get(cacheKey);
+    if (cached && cached.cachedAt + cacheTtlMs > now) return cached.value;
+
+    const pending = inFlight.get(cacheKey);
+    if (pending) return pending;
+
+    const request = fetchConfig<Schema>({
       baseUrl,
       projectId: config.projectId,
       environment: opts.environment,
       apiKey,
       timeoutMs: opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    }).then((result) => {
+      if (cacheTtlMs > 0) {
+        if (
+          !memoryCache.has(cacheKey) &&
+          memoryCache.size >= MAX_CACHE_ENTRIES
+        ) {
+          const oldestKey = memoryCache.keys().next().value;
+          if (oldestKey !== undefined) memoryCache.delete(oldestKey);
+        }
+        const cachedAt = Date.now();
+        memoryCache.set(cacheKey, {
+          value: result,
+          cachedAt,
+          expiresAt: cachedAt + cacheTtlMs,
+        });
+      }
+      return result;
     });
 
-    if (useCache) memoryCache.set(opts.environment, result);
-    return result;
+    inFlight.set(cacheKey, request);
+    try {
+      return await request;
+    } finally {
+      inFlight.delete(cacheKey);
+    }
   };
+}
+
+async function fingerprintApiKey(apiKey: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(apiKey),
+  );
+  return Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+}
+
+function pruneExpiredEntries<Schema>(
+  cache: Map<string, CacheEntry<Schema>>,
+  now: number,
+): void {
+  for (const [key, entry] of cache) {
+    if (entry.expiresAt <= now) cache.delete(key);
+  }
 }
 
 /**

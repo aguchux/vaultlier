@@ -40,8 +40,8 @@ export default function SdkPage(): React.JSX.Element {
       <H2 id="generated-client">Generated client</H2>
       <P>
         <InlineCode>vaultlier init</InlineCode> writes a typed client to{" "}
-        <InlineCode>lib/vaultlier.ts</InlineCode> with your project id and a type
-        parameter derived from your schema. Import and call it:
+        <InlineCode>lib/vaultlier.ts</InlineCode> with your project id and a
+        type parameter derived from your schema. Import and call it:
       </P>
       <CodeBlock label="TypeScript">{`import { vault } from "./lib/vaultlier";
 
@@ -65,7 +65,11 @@ const config = await vault({ environment: "prod" });`}</CodeBlock>
       <Table
         head={["Option", "Type", "Description"]}
         rows={[
-          [<InlineCode key="p">projectId</InlineCode>, "string", "The public project id (prj_…). Required."],
+          [
+            <InlineCode key="p">projectId</InlineCode>,
+            "string",
+            "The public project id (prj_…). Required.",
+          ],
           [
             <InlineCode key="b">baseUrl</InlineCode>,
             "string",
@@ -80,7 +84,7 @@ const config = await vault({ environment: "prod" });`}</CodeBlock>
           [
             <InlineCode key="e">environment</InlineCode>,
             "string",
-            "Which environment to resolve, e.g. \"dev\" | \"staging\" | \"prod\". Required.",
+            'Which environment to resolve, e.g. "dev" | "staging" | "prod". Required.',
           ],
           [
             <InlineCode key="a">apiKey</InlineCode>,
@@ -90,7 +94,12 @@ const config = await vault({ environment: "prod" });`}</CodeBlock>
           [
             <InlineCode key="c">cache</InlineCode>,
             '"memory" | "none"',
-            'Defaults to "memory" — caches the resolved config for the client\'s lifetime.',
+            'Defaults to "memory" - caches per process, environment, and API key.',
+          ],
+          [
+            <InlineCode key="ct">cacheTtlMs</InlineCode>,
+            "number",
+            "Memory-cache lifetime. Defaults to 60000 (one minute).",
           ],
           [
             <InlineCode key="t">timeoutMs</InlineCode>,
@@ -111,8 +120,8 @@ const config = await vault({ environment: "prod" });`}</CodeBlock>
           environment.
         </li>
         <li>
-          The local credential cache created by <InlineCode>vaultlier init</InlineCode>{" "}
-          (development only).
+          The local credential cache created by{" "}
+          <InlineCode>vaultlier init</InlineCode> (development only).
         </li>
       </OL>
       <Callout tone="warn" title="Never commit your API key">
@@ -124,23 +133,34 @@ const config = await vault({ environment: "prod" });`}</CodeBlock>
       <H2 id="caching">Caching</H2>
       <P>
         With the default <InlineCode>cache: &quot;memory&quot;</InlineCode>, the
-        first call for an environment fetches and caches the result for the
-        client&apos;s lifetime; subsequent calls return the cached value. Pass{" "}
-        <InlineCode>cache: &quot;none&quot;</InlineCode> to always refetch.
+        first call for an environment and API key fetches the config and keeps
+        it in process memory for one minute. Concurrent first calls share one
+        request. The cache never writes values to disk, browser storage, a CDN,
+        or a shared data store.
       </P>
-      <CodeBlock label="TypeScript">{`// Cached for the life of the module — resolve once at startup.
+      <CodeBlock label="TypeScript">{`// Export one module-level client and reuse it throughout the process.
 const config = await vault({ environment: "prod" });
 
-// Force a fresh fetch (e.g. after a rotation).
+// Use a shorter revocation/freshness window for sensitive workloads.
+const strict = await vault({ environment: "prod", cacheTtlMs: 15_000 });
+
+// Bypass the memory cache completely.
 const fresh = await vault({ environment: "prod", cache: "none" });`}</CodeBlock>
+      <Callout tone="security">
+        Do not place decrypted configuration in Redis, a database, Next.js
+        shared fetch caching, CDN caches, browser storage, or serialized build
+        output. A longer TTL reduces calls but also extends the maximum window
+        before key revocation or secret rotation is observed.
+      </Callout>
 
       <H2 id="errors">Error handling</H2>
       <P>
-        Failures throw a <InlineCode>VaultlierRuntimeError</InlineCode> carrying a
-        stable <InlineCode>code</InlineCode>, a safe <InlineCode>message</InlineCode>,
-        and an optional <InlineCode>requestId</InlineCode>. It never includes the
-        API key, headers, or decrypted values, and its{" "}
-        <InlineCode>toJSON</InlineCode> only serializes those safe fields.
+        Failures throw a <InlineCode>VaultlierRuntimeError</InlineCode> carrying
+        a stable <InlineCode>code</InlineCode>, a safe{" "}
+        <InlineCode>message</InlineCode>, and an optional{" "}
+        <InlineCode>requestId</InlineCode>. It never includes the API key,
+        headers, or decrypted values, and its <InlineCode>toJSON</InlineCode>{" "}
+        only serializes those safe fields.
       </P>
       <CodeBlock label="TypeScript">{`import { VaultlierRuntimeError } from "vaultlier";
 
@@ -172,8 +192,10 @@ try {
         </li>
       </UL>
       <Callout tone="info">
-        Resolve configuration once during boot and fail fast on errors, rather
-        than per request — see the <A href="/quickstart">Quickstart</A>.
+        Create the client once at module scope and call that same client
+        throughout the process. Avoid constructing a new client per request,
+        because each client owns a separate memory cache. See the{" "}
+        <A href="/quickstart">Quickstart</A>.
       </Callout>
     </DocPage>
   );

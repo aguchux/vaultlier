@@ -9,7 +9,10 @@ Vaultlier replaces the `.env` workflow without writing secret values to disk. Th
    or `vaultlier.config.json` (metadata) and `lib/vaultlier.ts` (typed
    client) — contain key names, types, and scopes only.
 2. **In-memory resolution.** Runtime secret resolution happens in memory. The
-   optional `cache: "memory"` mode keeps values only for the client's lifetime.
+   default `cache: "memory"` mode keeps values only in the current process, is
+   partitioned by environment and API-key fingerprint, and expires entries
+   after 60 seconds by default. Concurrent reads share one in-flight request.
+   Values are never placed in a CDN, browser cache, database, or shared cache.
 3. **API keys are masked, never logged.** Use `maskSecret` for any human-facing
    display and `redact` before logging objects. `VaultlierRuntimeError` exposes
    only `{ name, code, message, requestId }` via `toJSON` — never a key, header,
@@ -37,6 +40,8 @@ Vaultlier replaces the `.env` workflow without writing secret values to disk. Th
   or any key material. The repository `.gitignore` blocks these by default.
 - Set `VAULTLIER_API_KEY` via your host/CI secret store, not in source.
 - Rotate API keys regularly; scope them by project and environment.
+- Keep `cacheTtlMs` short enough for your revocation requirements. Use
+  `cache: "none"` where every read must be re-authorized immediately.
 
 ## Helpers exported for safe handling
 
