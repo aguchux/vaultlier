@@ -4,6 +4,14 @@ export function canManageProject(role: Role): boolean {
   return role === "OWNER" || role === "ADMIN";
 }
 
+/**
+ * Who may read/write secret VALUES from the portal. Mirrors the v1 API, where
+ * writing secrets requires a MEMBER+ key; viewers are read-only.
+ */
+export function canWriteSecrets(role: Role): boolean {
+  return role === "OWNER" || role === "ADMIN" || role === "MEMBER";
+}
+
 export function canManageOrganization(role: Role): boolean {
   return role === "OWNER" || role === "ADMIN";
 }

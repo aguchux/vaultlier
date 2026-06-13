@@ -4,7 +4,17 @@ import {
   canManageOrganization,
   canManageProject,
   canManageRole,
+  canWriteSecrets,
 } from "./rbac";
+
+describe("secret-write RBAC", () => {
+  it("allows owners, admins, and members to write; viewers are read-only", () => {
+    expect(canWriteSecrets("OWNER")).toBe(true);
+    expect(canWriteSecrets("ADMIN")).toBe(true);
+    expect(canWriteSecrets("MEMBER")).toBe(true);
+    expect(canWriteSecrets("VIEWER")).toBe(false);
+  });
+});
 
 describe("organization RBAC", () => {
   it("limits project and organization management to owners and admins", () => {
