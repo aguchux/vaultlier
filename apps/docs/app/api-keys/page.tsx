@@ -10,8 +10,14 @@ import {
   UL,
 } from "../components/doc";
 import { CodeBlock } from "../components/code-block";
+import { createDocsMetadata } from "../lib/seo";
 
-export const metadata = { title: "API Keys" };
+export const metadata = createDocsMetadata({
+  title: "API Keys",
+  description:
+    "Create, scope, rotate, and revoke project-specific Vaultlier API keys without storing raw credentials.",
+  path: "/api-keys",
+});
 
 const toc = [
   { id: "what", title: "What API keys are" },

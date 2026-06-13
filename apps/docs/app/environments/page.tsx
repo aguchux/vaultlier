@@ -8,8 +8,14 @@ import {
   UL,
 } from "../components/doc";
 import { CodeBlock } from "../components/code-block";
+import { createDocsMetadata } from "../lib/seo";
 
-export const metadata = { title: "Environments" };
+export const metadata = createDocsMetadata({
+  title: "Environments",
+  description:
+    "Manage development, staging, production, and custom environments with scoped keys and versioned values.",
+  path: "/environments",
+});
 
 const toc = [
   { id: "model", title: "The model" },

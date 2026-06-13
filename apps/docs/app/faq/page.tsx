@@ -1,7 +1,13 @@
 import { A, DocPage, H2, InlineCode, P } from "../components/doc";
 import { CodeBlock } from "../components/code-block";
+import { createDocsMetadata } from "../lib/seo";
 
-export const metadata = { title: "FAQ" };
+export const metadata = createDocsMetadata({
+  title: "Frequently Asked Questions",
+  description:
+    "Answers about Vaultlier, .env replacement, offline behavior, API keys, project IDs, rotation, and self-hosting.",
+  path: "/faq",
+});
 
 const toc = [
   { id: "vs-dotenv", title: "How is this different from .env?" },

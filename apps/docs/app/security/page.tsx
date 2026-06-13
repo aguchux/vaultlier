@@ -7,8 +7,14 @@ import {
   P,
   UL,
 } from "../components/doc";
+import { createDocsMetadata } from "../lib/seo";
 
-export const metadata = { title: "Security" };
+export const metadata = createDocsMetadata({
+  title: "Security",
+  description:
+    "Understand Vaultlier's encryption, in-memory secret resolution, credential handling, auditability, and trust boundaries.",
+  path: "/security",
+});
 
 const toc = [
   { id: "disk", title: "Secrets never touch disk" },

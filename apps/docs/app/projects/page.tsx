@@ -8,8 +8,14 @@ import {
   UL,
 } from "../components/doc";
 import { CodeBlock } from "../components/code-block";
+import { createDocsMetadata } from "../lib/seo";
 
-export const metadata = { title: "Projects" };
+export const metadata = createDocsMetadata({
+  title: "Projects",
+  description:
+    "Understand Vaultlier projects, project IDs, organizations, roles, local bindings, environments, and API keys.",
+  path: "/projects",
+});
 
 const toc = [
   { id: "what", title: "What a project is" },

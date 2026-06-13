@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Bell } from "lucide-react";
 import { Logo } from "@repo/ui/logo";
@@ -16,8 +17,14 @@ async function signOutAction(): Promise<void> {
   await signOut({ redirectTo: "/" });
 }
 
-export const metadata = {
-  title: "Dashboard - Vaultlier",
+export const metadata: Metadata = {
+  title: "Dashboard",
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+    noarchive: true,
+  },
 };
 
 export default async function DashboardLayout({

@@ -8,8 +8,14 @@ import {
   P,
 } from "../components/doc";
 import { CodeBlock } from "../components/code-block";
+import { createDocsMetadata } from "../lib/seo";
 
-export const metadata = { title: "Quickstart" };
+export const metadata = createDocsMetadata({
+  title: "Quickstart",
+  description:
+    "Go from an empty project to typed, sealed configuration with the Vaultlier CLI and runtime SDK.",
+  path: "/quickstart",
+});
 
 const toc = [
   { id: "sign-in", title: "1. Sign in" },

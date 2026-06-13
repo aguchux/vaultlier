@@ -11,8 +11,14 @@ import {
   UL,
 } from "../components/doc";
 import { CodeBlock } from "../components/code-block";
+import { createDocsMetadata } from "../lib/seo";
 
-export const metadata = { title: "SDK" };
+export const metadata = createDocsMetadata({
+  title: "Runtime SDK",
+  description:
+    "Use Vaultlier's edge-compatible TypeScript runtime SDK to resolve typed, environment-specific configuration securely.",
+  path: "/sdk",
+});
 
 const toc = [
   { id: "generated-client", title: "Generated client" },

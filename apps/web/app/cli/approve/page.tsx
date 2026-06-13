@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Logo } from "@repo/ui/logo";
@@ -6,8 +7,13 @@ import { auth } from "../../../lib/auth";
 import { approveCliLogin, denyCliLogin } from "./actions";
 import { ApproveForm } from "./approve-form";
 
-export const metadata = {
-  title: "Authorize CLI — Vaultlier",
+export const metadata: Metadata = {
+  title: "Authorize CLI",
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+  },
 };
 
 /**

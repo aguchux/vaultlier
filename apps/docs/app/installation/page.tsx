@@ -9,8 +9,14 @@ import {
   UL,
 } from "../components/doc";
 import { CodeBlock } from "../components/code-block";
+import { createDocsMetadata } from "../lib/seo";
 
-export const metadata = { title: "Installation" };
+export const metadata = createDocsMetadata({
+  title: "Installation",
+  description:
+    "Install the Vaultlier CLI and runtime SDK, review requirements, package entry points, and portal configuration.",
+  path: "/installation",
+});
 
 const toc = [
   { id: "requirements", title: "Requirements" },

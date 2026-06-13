@@ -9,8 +9,14 @@ import {
   UL,
 } from "../components/doc";
 import { CodeBlock } from "../components/code-block";
+import { createDocsMetadata } from "../lib/seo";
 
-export const metadata = { title: "CLI" };
+export const metadata = createDocsMetadata({
+  title: "CLI Reference",
+  description:
+    "Reference for Vaultlier CLI commands, flags, exit codes, authentication, schema sync, and secret management.",
+  path: "/cli",
+});
 
 const toc = [
   { id: "init", title: "init" },
