@@ -34,6 +34,8 @@ const themeCss = `
     color: light-dark(#1a1a1a, #e8ecea);
   }
   a { color: light-dark(#16794c, #32d583); }
+  button:not(:disabled), a[href], summary, label[for] { cursor: pointer; }
+  button:disabled { cursor: not-allowed; }
 `;
 
 export default function RootLayout({

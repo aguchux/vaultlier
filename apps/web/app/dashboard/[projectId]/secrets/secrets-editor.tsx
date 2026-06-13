@@ -405,11 +405,10 @@ function SecretDialog({
     <dialog
       ref={ref}
       aria-label={isEdit ? "Edit variable" : "Add variable"}
-      onCancel={onClose}
-      onClose={onClose}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
+      // Only the X button and Cancel close this dialog — block Esc (cancel
+      // event) and don't wire a backdrop-click handler, so an accidental
+      // click-out or keypress can't discard in-progress edits.
+      onCancel={(event) => event.preventDefault()}
       className="m-auto w-[min(92vw,32rem)] rounded-2xl border border-black/10 bg-white p-0 text-ink-900 shadow-2xl backdrop:bg-ink-900/40 dark:border-white/10 dark:bg-ink-800 dark:text-ink-100"
     >
       <form action={submit}>

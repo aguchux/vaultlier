@@ -63,3 +63,33 @@
 :root {
   color-scheme: light;
 }
+
+/**
+ * Tailwind v4 reset interactive elements to `cursor: default`. Restore the
+ * pointer for clickable controls (buttons, links with an href, selects, and
+ * anything explicitly given role/tabindex) so every CTA across the apps feels
+ * clickable. Disabled controls fall back to `not-allowed`.
+ */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"],
+  [role="menuitem"],
+  a[href],
+  label[for],
+  summary,
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled),
+  input[type="submit"]:not(:disabled),
+  input[type="reset"]:not(:disabled),
+  input[type="file"]:not(:disabled)::file-selector-button {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [role="button"][aria-disabled="true"],
+  select:disabled {
+    cursor: not-allowed;
+  }
+}
