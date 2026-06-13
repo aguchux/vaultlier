@@ -1,10 +1,22 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://schema.vaultlier.com"),
+  applicationName: "Vaultlier Schema",
   title: "Vaultlier Schema",
   description:
     "JSON Schema for the Vaultlier config file (vaultlier.json / vaultlier.config.json).",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Vaultlier Schema",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#059669",
 };
 
 // This is a small static reference page with no app chrome to host a toggle,

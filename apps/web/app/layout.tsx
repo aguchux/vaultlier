@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { ThemeProvider } from "@repo/ui/theme-provider";
 import "./globals.css";
@@ -13,9 +13,21 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://vaultlier.com"),
+  applicationName: "Vaultlier",
   title: "Vaultlier — Configuration secrets, secured.",
   description:
     "Vaultlier is a Node.js library and platform for managing application configuration in a sealed vault — without exposing environment variables locally.",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Vaultlier",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#059669",
 };
 
 export default function RootLayout({
