@@ -7,6 +7,7 @@ import {
   generateSessionPublicId,
   generateUserCode,
   hashCliToken,
+  looksLikeCliToken,
 } from "./cli-auth";
 
 describe("generateCliToken", () => {
@@ -34,6 +35,24 @@ describe("hashCliToken", () => {
 
   it("differs for different inputs", () => {
     expect(hashCliToken("a")).not.toBe(hashCliToken("b"));
+  });
+
+  it("hashes legacy vlt_login tokens for backwards-compatible lookup", () => {
+    const legacy = "vlt_login_deadbeef";
+    expect(hashCliToken(legacy)).toBe(hashCliToken(legacy));
+    expect(hashCliToken(legacy)).toMatch(/^[0-9a-f]{64}$/);
+  });
+});
+
+describe("looksLikeCliToken", () => {
+  it("accepts current and legacy account token prefixes", () => {
+    expect(looksLikeCliToken("vlt_acct_deadbeef")).toBe(true);
+    expect(looksLikeCliToken("vlt_login_deadbeef")).toBe(true);
+  });
+
+  it("rejects project API keys and missing tokens", () => {
+    expect(looksLikeCliToken("vlt_live_deadbeef")).toBe(false);
+    expect(looksLikeCliToken("")).toBe(false);
   });
 });
 

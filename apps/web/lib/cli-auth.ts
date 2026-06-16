@@ -27,6 +27,7 @@ const CLI_TOKEN_TTL_DAYS = 90;
 
 // Crockford-style alphabet: no 0/O/1/I to keep the spoken/typed code clear.
 const USER_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const CLI_TOKEN_PREFIXES = ["vlt_acct_", "vlt_login_"];
 
 export function hashCliToken(rawToken: string): string {
   return createHash("sha256").update(rawToken, "utf8").digest("hex");
@@ -36,6 +37,10 @@ export function hashCliToken(rawToken: string): string {
 export function generateCliToken(): { rawToken: string; prefix: string } {
   const rawToken = `vlt_acct_${randomBytes(24).toString("hex")}`;
   return { rawToken, prefix: rawToken.slice(0, 13) };
+}
+
+export function looksLikeCliToken(rawToken: string): boolean {
+  return CLI_TOKEN_PREFIXES.some((prefix) => rawToken.startsWith(prefix));
 }
 
 /** A short, human-verifiable code formatted as XXXX-XXXX. */
@@ -61,7 +66,7 @@ export async function authenticateCliToken(
 ): Promise<{ user: User; token: CliToken } | null> {
   const header = req.headers.get("authorization") ?? "";
   const rawToken = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
-  if (!rawToken.startsWith("vlt_acct_")) return null;
+  if (!looksLikeCliToken(rawToken)) return null;
 
   const token = await prisma.cliToken.findUnique({
     where: { hashedToken: hashCliToken(rawToken) },
