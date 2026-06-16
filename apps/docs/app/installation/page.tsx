@@ -86,9 +86,11 @@ export default function InstallationPage(): React.JSX.Element {
       <H2 id="self-hosting">Self-hosted portals</H2>
       <P>
         By default the CLI and SDK talk to the hosted portal at{" "}
-        <InlineCode>https://api.vaultlier.com</InlineCode>. Point them at a
-        self-hosted deployment with the <InlineCode>--api-url</InlineCode> flag
-        or the <InlineCode>VAULTLIER_API_URL</InlineCode> environment variable.
+        <InlineCode>https://vaultlier.com/v1</InlineCode>. The configured API
+        base is <InlineCode>https://vaultlier.com</InlineCode>; versioned routes
+        are appended by the client. Point them at a self-hosted deployment with
+        the <InlineCode>--api-url</InlineCode> flag or the{" "}
+        <InlineCode>VAULTLIER_API_URL</InlineCode> environment variable.
       </P>
       <CodeBlock label="Terminal">{`export VAULTLIER_API_URL=https://vault.internal.example.com
 vaultlier pull --env=prod`}</CodeBlock>

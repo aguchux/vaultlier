@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createProject, listProjects } from "./portal.js";
+import {
+  DEFAULT_API_URL,
+  createProject,
+  listProjects,
+  resolveApiUrl,
+} from "./portal.js";
 import type { FetchLike } from "./portal.js";
 
 function jsonFetch(status: number, body: unknown): FetchLike {
@@ -12,6 +17,13 @@ function jsonFetch(status: number, body: unknown): FetchLike {
 }
 
 const OPTIONS = { apiUrl: "https://portal.test", apiKey: "vlt_login_tok" };
+
+describe("resolveApiUrl", () => {
+  it("uses the same-origin hosted portal by default", () => {
+    expect(resolveApiUrl(undefined, {})).toBe("https://vaultlier.com");
+    expect(DEFAULT_API_URL).toBe("https://vaultlier.com");
+  });
+});
 
 describe("listProjects", () => {
   it("returns project summaries and drops malformed entries", async () => {

@@ -13,7 +13,7 @@
 
 import type { VaultKeySchema, VaultlierConfig } from "../schema/types.js";
 
-export const DEFAULT_API_URL = "https://api.vaultlier.com";
+export const DEFAULT_API_URL = "https://vaultlier.com";
 export const API_URL_ENV = "VAULTLIER_API_URL";
 
 const REQUEST_TIMEOUT_MS = 15_000;

@@ -85,6 +85,17 @@ describe("createClient", () => {
     expect(init.headers.authorization).toBe(`Bearer ${apiKey}`);
   });
 
+  it("uses the same-origin hosted portal by default", async () => {
+    const fetchMock = stubFetch(async () => fakeResponse({ body: {} }));
+    const vault = createClient({ projectId });
+
+    await vault({ environment: "prod", apiKey, cache: "none" });
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "https://vaultlier.com/v1/projects/prj_checkout_api/config?environment=prod",
+    );
+  });
+
   it("resolves the key from VAULTLIER_API_KEY when not passed explicitly", async () => {
     vi.stubEnv("VAULTLIER_API_KEY", apiKey);
     const fetchMock = stubFetch(async () => fakeResponse({ body: {} }));
