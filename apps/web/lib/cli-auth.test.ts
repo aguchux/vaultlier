@@ -11,9 +11,9 @@ import {
 } from "./cli-auth";
 
 describe("generateCliToken", () => {
-  it("produces a vlt_acct_ token whose prefix is a non-sensitive slice", () => {
+  it("produces a vlt_login_ token whose prefix is a non-sensitive slice", () => {
     const { rawToken, prefix } = generateCliToken();
-    expect(rawToken).toMatch(/^vlt_acct_[0-9a-f]{48}$/);
+    expect(rawToken).toMatch(/^vlt_login_[0-9a-f]{48}$/);
     // The prefix is the leading 13 chars — the family marker, nothing secret.
     expect(prefix).toBe(rawToken.slice(0, 13));
     expect(rawToken.startsWith(prefix)).toBe(true);
@@ -26,7 +26,7 @@ describe("generateCliToken", () => {
 
 describe("hashCliToken", () => {
   it("is deterministic and hides the raw token", () => {
-    const raw = "vlt_acct_deadbeef";
+    const raw = "vlt_login_deadbeef";
     const hash = hashCliToken(raw);
     expect(hash).toMatch(/^[0-9a-f]{64}$/);
     expect(hash).toBe(hashCliToken(raw));
@@ -37,8 +37,8 @@ describe("hashCliToken", () => {
     expect(hashCliToken("a")).not.toBe(hashCliToken("b"));
   });
 
-  it("hashes legacy vlt_login tokens for backwards-compatible lookup", () => {
-    const legacy = "vlt_login_deadbeef";
+  it("hashes legacy vlt_acct tokens for backwards-compatible lookup", () => {
+    const legacy = "vlt_acct_deadbeef";
     expect(hashCliToken(legacy)).toBe(hashCliToken(legacy));
     expect(hashCliToken(legacy)).toMatch(/^[0-9a-f]{64}$/);
   });

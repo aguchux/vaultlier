@@ -340,7 +340,7 @@ model CliLoginSession {
 model CliToken {
   id         String    @id @default(cuid())
   userId     String
-  // Non-sensitive prefix for display (e.g. "vlt_acct_ab12").
+  // Non-sensitive prefix for display (e.g. "vlt_login_ab1").
   prefix     String
   hashedToken String   @unique
   // Free-form device label (host/OS) for the user to recognize sessions.

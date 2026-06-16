@@ -38,10 +38,10 @@ export default function ApiKeysPage(): React.JSX.Element {
     >
       <H2 id="what">What API keys are</H2>
       <P>
-        An API key (<InlineCode>vlt_…</InlineCode>) authorizes access to a single
-        project. The portal stores only a SHA-256 hash plus a non-sensitive
-        prefix for display — the raw key is shown exactly once at creation and
-        is never retrievable later.
+        An API key (<InlineCode>vlt_…</InlineCode>) authorizes access to a
+        single project. The portal stores only a SHA-256 hash plus a
+        non-sensitive prefix for display — the raw key is shown exactly once at
+        creation and is never retrievable later.
       </P>
       <Callout tone="warn" title="Copy it immediately">
         When you create a key, copy it right away and store it in your secret
@@ -76,9 +76,17 @@ export default function ApiKeysPage(): React.JSX.Element {
       <H2 id="using">Using a key</H2>
       <P>The CLI and SDK resolve the key in this order:</P>
       <OL>
-        <li>An explicit <InlineCode>--api-key</InlineCode> flag or <InlineCode>apiKey</InlineCode> option.</li>
-        <li><InlineCode>VAULTLIER_API_KEY</InlineCode> in the environment.</li>
-        <li>The local credential cache from <InlineCode>vaultlier init</InlineCode> (dev only).</li>
+        <li>
+          An explicit <InlineCode>--api-key</InlineCode> flag or{" "}
+          <InlineCode>apiKey</InlineCode> option.
+        </li>
+        <li>
+          <InlineCode>VAULTLIER_API_KEY</InlineCode> in the environment.
+        </li>
+        <li>
+          The local credential cache from{" "}
+          <InlineCode>vaultlier init</InlineCode> (dev only).
+        </li>
       </OL>
       <CodeBlock label="Terminal">{`# Production: set it in your platform's secret store
 export VAULTLIER_API_KEY=vlt_live_...
@@ -95,7 +103,7 @@ vaultlier config set apiKey=vlt_live_...`}</CodeBlock>
         head={["Credential", "Scope", "Created by", "Reads secrets?"]}
         rows={[
           [
-            <InlineCode key="a">vlt_acct_…</InlineCode>,
+            <InlineCode key="a">vlt_login_…</InlineCode>,
             "Account — list/create projects",
             "vaultlier login",
             "No",
@@ -109,13 +117,15 @@ vaultlier config set apiKey=vlt_live_...`}</CodeBlock>
         ]}
       />
       <Callout tone="security">
-        Account tokens from <InlineCode>login</InlineCode> can never read or write
-        secrets. Secret access always requires a project API key.
+        Account tokens from <InlineCode>login</InlineCode> can never read or
+        write secrets. Secret access always requires a project API key.
       </Callout>
 
       <H2 id="rotation">Rotation &amp; revocation</H2>
       <UL>
-        <li>Revoke a key from the portal; revocation takes effect immediately.</li>
+        <li>
+          Revoke a key from the portal; revocation takes effect immediately.
+        </li>
         <li>
           To rotate, create a new key, deploy it via{" "}
           <InlineCode>VAULTLIER_API_KEY</InlineCode>, then revoke the old one.

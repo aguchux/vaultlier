@@ -1,12 +1,4 @@
-import {
-  A,
-  Callout,
-  DocPage,
-  H2,
-  InlineCode,
-  P,
-  UL,
-} from "../components/doc";
+import { A, Callout, DocPage, H2, InlineCode, P, UL } from "../components/doc";
 import { createDocsMetadata } from "../lib/seo";
 
 export const metadata = createDocsMetadata({
@@ -72,18 +64,19 @@ export default function SecurityPage(): React.JSX.Element {
           once and never retrievable.
         </li>
         <li>
-          <strong>Account tokens</strong> (<InlineCode>vlt_acct_…</InlineCode>)
+          <strong>Account tokens</strong> (<InlineCode>vlt_login_…</InlineCode>)
           from <InlineCode>login</InlineCode> are stored per-user in{" "}
           <InlineCode>~/.vaultlier/auth.json</InlineCode> with owner-only
           permissions — outside any repository.
         </li>
         <li>
-          The CLI masks keys in all output (e.g. <InlineCode>config get</InlineCode>,{" "}
-          <InlineCode>whoami</InlineCode>, the <InlineCode>dev</InlineCode> UI).
+          The CLI masks keys in all output (e.g.{" "}
+          <InlineCode>config get</InlineCode>, <InlineCode>whoami</InlineCode>,
+          the <InlineCode>dev</InlineCode> UI).
         </li>
         <li>
-          The <InlineCode>set</InlineCode> command validates key names and scopes
-          locally before any value leaves your machine.
+          The <InlineCode>set</InlineCode> command validates key names and
+          scopes locally before any value leaves your machine.
         </li>
       </UL>
 
@@ -114,7 +107,10 @@ export default function SecurityPage(): React.JSX.Element {
           Set <InlineCode>VAULTLIER_API_KEY</InlineCode> in your platform&apos;s
           secret store — never in source control.
         </li>
-        <li>Use a viewer-role key for runtime reads; reserve member keys for CI writes.</li>
+        <li>
+          Use a viewer-role key for runtime reads; reserve member keys for CI
+          writes.
+        </li>
         <li>Add an IP allowlist and expiry to keys where practical.</li>
         <li>Revoke unused API keys and CLI device sessions from the portal.</li>
         <li>
@@ -123,8 +119,8 @@ export default function SecurityPage(): React.JSX.Element {
         </li>
       </UL>
       <P>
-        Related: <A href="/api-keys">API Keys</A> for roles and rotation, and the{" "}
-        <A href="/cli">CLI reference</A> for output controls.
+        Related: <A href="/api-keys">API Keys</A> for roles and rotation, and
+        the <A href="/cli">CLI reference</A> for output controls.
       </P>
     </DocPage>
   );

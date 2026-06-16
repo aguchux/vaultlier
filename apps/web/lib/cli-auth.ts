@@ -27,7 +27,7 @@ const CLI_TOKEN_TTL_DAYS = 90;
 
 // Crockford-style alphabet: no 0/O/1/I to keep the spoken/typed code clear.
 const USER_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-const CLI_TOKEN_PREFIXES = ["vlt_acct_", "vlt_login_"];
+const CLI_TOKEN_PREFIXES = ["vlt_login_", "vlt_acct_"];
 
 export function hashCliToken(rawToken: string): string {
   return createHash("sha256").update(rawToken, "utf8").digest("hex");
@@ -35,7 +35,7 @@ export function hashCliToken(rawToken: string): string {
 
 /** Generate a raw account token. Returned once; only the hash is stored. */
 export function generateCliToken(): { rawToken: string; prefix: string } {
-  const rawToken = `vlt_acct_${randomBytes(24).toString("hex")}`;
+  const rawToken = `vlt_login_${randomBytes(24).toString("hex")}`;
   return { rawToken, prefix: rawToken.slice(0, 13) };
 }
 
