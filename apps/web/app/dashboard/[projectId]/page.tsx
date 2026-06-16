@@ -3,6 +3,7 @@ import { prisma } from "@repo/db";
 import { BackButton } from "@repo/ui/back-button";
 import { Button } from "@repo/ui/button";
 import { Card } from "@repo/ui/card";
+import { activityActionFilter } from "../../../lib/audit";
 import { requireProjectAccess, requireUser } from "../../../lib/tenancy";
 
 export default async function ProjectPage({
@@ -23,6 +24,7 @@ export default async function ProjectPage({
     prisma.apiKey.count({ where: { projectId, revokedAt: null } }),
     prisma.auditLog.findMany({
       where: {
+        ...activityActionFilter(),
         OR: [
           { projectId },
           // Include entries (e.g. creation) recorded against this project id

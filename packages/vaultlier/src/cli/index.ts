@@ -7,6 +7,7 @@
  */
 
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { stdin as processStdin, stdout as processStdout } from "node:process";
@@ -77,7 +78,8 @@ export type CommandName =
   | "set"
   | "whoami"
   | "dev"
-  | "scan";
+  | "scan"
+  | "generate-key";
 
 export interface ParsedArgs {
   command?: string;
@@ -237,6 +239,7 @@ Usage:
   vaultlier <command> [options]
   vaultlier set KEY=VALUE [KEY=VALUE ...] --env=<name>
   vaultlier config <set|get|verify> [project=<id>] [apiKey=<key>]
+  vaultlier generate-key            (also: vaultlier generate key)
 
 Commands:
   init                   Set up this directory: log in, pick or create a
@@ -255,6 +258,8 @@ Commands:
   dev                    Start the local config UI on port ${DEV_PORT} (shows
                          remote dev values when an API key is available)
   scan                   Detect env keys and optionally update schema metadata
+  generate-key           Print a fresh VAULT_MASTER_KEY (32 random bytes, base64)
+                         for the server to seal secrets. Not stored or logged.
 
 Options:
   -e, --env=<name|all>       Target environment (alias: --environment)
@@ -297,6 +302,17 @@ export async function run(
     sleep: options.sleep,
     ui: createUi({ stdout, stderr, env }),
   };
+
+  // `vaultlier generate key` / `-g key` -> master key generator. Disambiguated
+  // from the .env generator (`generate`/`-g` with no `key` positional) by the
+  // positional argument.
+  if (
+    (command === "generate-key") ||
+    (command === "generate" && positionals[0] === "key") ||
+    (flags.generate === true && positionals[0] === "key")
+  ) {
+    return generateKeyCommand(ctx);
+  }
 
   if (flags.generate === true && (!command || command === "generate")) {
     return generateCommand(flags, ctx);
@@ -964,6 +980,31 @@ async function generateCommand(
   if (envResult !== ExitCode.Success) return envResult;
 
   return writeKeyOnlyEnvFile(config, flags, ctx);
+}
+
+/**
+ * `vaultlier generate-key` — print a fresh VAULT_MASTER_KEY.
+ *
+ * Generates 32 cryptographically-random bytes, base64-encoded — the exact shape
+ * the server's vault layer expects. The key is written ONCE to stdout and
+ * NOTHING else: it is never stored, cached, logged, or sent anywhere. Guidance
+ * goes to stderr so `vaultlier generate-key` can be piped to capture only the
+ * key (e.g. `vaultlier generate-key > /dev/null` won't leak it to logs).
+ */
+function generateKeyCommand(ctx: CliContext): ExitCode {
+  const key = randomBytes(32).toString("base64");
+  // The key itself: stdout only, nothing else on that stream.
+  ctx.stdout.write(`${key}\n`);
+
+  const { style } = ctx.ui;
+  ctx.stderr.write(
+    `\n${style.bold("VAULT_MASTER_KEY")} - set this on the server (e.g. your host's env vars):\n` +
+      `  ${style.dim("VAULT_MASTER_KEY=<the value above>")}\n\n` +
+      `${style.dim("• 32 random bytes, base64 — sealed/unsealed with AES-256-GCM per project.")}\n` +
+      `${style.dim("• Treat it like a root credential. It is NOT stored, logged, or tracked by this command.")}\n` +
+      `${style.dim("• Set it once and keep it: changing or losing it makes existing secrets unrecoverable.")}\n`,
+  );
+  return ExitCode.Success;
 }
 
 /** Resolve when the process receives SIGINT/SIGTERM, then close the server. */

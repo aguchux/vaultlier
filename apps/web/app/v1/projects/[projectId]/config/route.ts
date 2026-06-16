@@ -57,26 +57,44 @@ export async function GET(
 
   const config: Record<string, unknown> = {};
   const readKeys: string[] = [];
-  for (const key of keys) {
-    if (!keyInScope(key, environment)) continue;
-    const version = key.versions[0];
-    if (!version) continue;
-    // Prefer the project's external store when configured; fall back to the DB
-    // copy on miss/outage so reads keep working through a backend failure.
-    const external = await readExternal(project, {
-      environment,
-      keyName: key.name,
-      version: version.version,
-    });
-    const sealed = external ?? {
-      ciphertext: Buffer.from(version.ciphertext),
-      nonce: Buffer.from(version.nonce),
-      authTag: Buffer.from(version.authTag),
-      kekId: version.kekId,
-    };
-    const plaintext = decryptSecret(project.id, sealed);
-    config[key.name] = coerceValue(plaintext, key.type);
-    readKeys.push(key.name);
+  try {
+    for (const key of keys) {
+      if (!keyInScope(key, environment)) continue;
+      const version = key.versions[0];
+      if (!version) continue;
+      // Prefer the project's external store when configured; fall back to the
+      // DB copy on miss/outage so reads keep working through a backend failure.
+      const external = await readExternal(project, {
+        environment,
+        keyName: key.name,
+        version: version.version,
+      });
+      const sealed = external ?? {
+        ciphertext: Buffer.from(version.ciphertext),
+        nonce: Buffer.from(version.nonce),
+        authTag: Buffer.from(version.authTag),
+        kekId: version.kekId,
+      };
+      const plaintext = decryptSecret(project.id, sealed);
+      config[key.name] = coerceValue(plaintext, key.type);
+      readKeys.push(key.name);
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/VAULT_MASTER_KEY/.test(message)) {
+      return apiError(
+        requestId,
+        503,
+        "vault/unconfigured",
+        "The vault is not configured to unseal secrets (server is missing VAULT_MASTER_KEY). Contact the deployment owner.",
+      );
+    }
+    return apiError(
+      requestId,
+      500,
+      "vault/read_failed",
+      "Could not resolve configuration. Please try again.",
+    );
   }
 
   await logAudit({

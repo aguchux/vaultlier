@@ -121,7 +121,9 @@ export async function PUT(
     writes.push({ keyId: key.id, name, plaintext: normalized.plaintext });
   }
 
-  const { versions, drifted } = await prisma.$transaction(async (tx) => {
+  let txResult: { versions: Record<string, number>; drifted: boolean };
+  try {
+    txResult = await prisma.$transaction(async (tx) => {
     const result: Record<string, number> = {};
     const driftedKeys: string[] = [];
     for (const write of writes) {
@@ -187,7 +189,28 @@ export async function PUT(
       );
     }
     return { versions: result, drifted: driftedKeys.length > 0 };
-  });
+    });
+  } catch (err) {
+    // A missing/invalid VAULT_MASTER_KEY (or other crypto/storage failure)
+    // would otherwise surface as an opaque 500. Return an actionable error
+    // without leaking internals or any secret value.
+    const message = err instanceof Error ? err.message : String(err);
+    if (/VAULT_MASTER_KEY/.test(message)) {
+      return apiError(
+        requestId,
+        503,
+        "vault/unconfigured",
+        "The vault is not configured to seal secrets (server is missing VAULT_MASTER_KEY). Contact the deployment owner.",
+      );
+    }
+    return apiError(
+      requestId,
+      500,
+      "vault/write_failed",
+      "Could not store the secret values. Please try again.",
+    );
+  }
+  const { versions, drifted } = txResult;
 
   return apiJson(requestId, {
     environment: body.environment,

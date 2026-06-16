@@ -2,6 +2,7 @@ import { ScrollText } from "lucide-react";
 import { prisma } from "@repo/db";
 import { BackButton } from "@repo/ui/back-button";
 import { Card } from "@repo/ui/card";
+import { activityActionFilter } from "../../../lib/audit";
 import { requireUser } from "../../../lib/tenancy";
 
 type SearchParams = Promise<{ organizationId?: string }>;
@@ -21,7 +22,7 @@ export default async function AuditPage({
     organizations.find((org) => org.id === organizationId) ?? organizations[0];
   if (!selected) return <div />;
   const logs = await prisma.auditLog.findMany({
-    where: { organizationId: selected.id },
+    where: { organizationId: selected.id, ...activityActionFilter() },
     orderBy: { createdAt: "desc" },
     take: 100,
     include: {

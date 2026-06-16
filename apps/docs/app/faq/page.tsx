@@ -78,6 +78,16 @@ export VAULTLIER_API_KEY=vlt_live_...`}</CodeBlock>
         <InlineCode>baseUrl</InlineCode> client option (SDK). See{" "}
         <A href="/installation">Installation</A>.
       </P>
+      <P>
+        A self-hosted portal must set <InlineCode>VAULT_MASTER_KEY</InlineCode>{" "}
+        in its server environment — the key it uses to seal and unseal secret
+        values. Generate one with{" "}
+        <A href="/cli#generate-key">
+          <InlineCode>vaultlier generate-key</InlineCode>
+        </A>
+        , set it once, and keep it safe; without it, reads and writes of secret
+        values fail.
+      </P>
 
       <H2 id="rotate">How do I rotate an API key?</H2>
       <P>

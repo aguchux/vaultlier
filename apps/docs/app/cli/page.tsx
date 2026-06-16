@@ -27,6 +27,7 @@ const toc = [
   { id: "set", title: "set" },
   { id: "dev", title: "dev" },
   { id: "whoami", title: "whoami" },
+  { id: "generate-key", title: "generate-key" },
   { id: "flags", title: "Flag conventions" },
   { id: "output", title: "Output & scripting" },
 ];
@@ -195,6 +196,30 @@ vaultlier dev --port=4000`}</CodeBlock>
       <H2 id="whoami">whoami</H2>
       <P>Prints the resolved project context: project id, environments, and the masked API key.</P>
       <CodeBlock label="Terminal">{`vaultlier whoami`}</CodeBlock>
+
+      <H2 id="generate-key">generate-key</H2>
+      <P>
+        Prints a fresh <InlineCode>VAULT_MASTER_KEY</InlineCode> — 32
+        cryptographically-random bytes, base64-encoded — for a portal deployment
+        to seal and unseal secret values. This is only needed when you{" "}
+        <A href="/faq#self-host">self-host</A> the portal; the hosted service is
+        already configured. <InlineCode>vaultlier generate key</InlineCode> and{" "}
+        <InlineCode>vaultlier -g key</InlineCode> are accepted aliases.
+      </P>
+      <CodeBlock label="Terminal">{`# print a key (also: vaultlier generate key)
+vaultlier generate-key
+
+# the key prints on stdout, setup notes on stderr — so you can capture just the key:
+vaultlier generate-key 2>/dev/null
+KEY=$(vaultlier generate-key 2>/dev/null)`}</CodeBlock>
+      <Callout tone="security" title="Set once; never store it casually">
+        The command <strong>does not store, cache, log, or transmit</strong> the
+        key — it only prints it. Set it as a server environment variable
+        (<InlineCode>VAULT_MASTER_KEY</InlineCode>) on your deployment and treat
+        it like a root credential. Changing or losing it makes
+        already-sealed secrets unrecoverable, because each value records the key
+        generation it was sealed with.
+      </Callout>
 
       <H2 id="flags">Flag conventions</H2>
       <P>

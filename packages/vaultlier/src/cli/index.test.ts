@@ -161,6 +161,33 @@ describe("run", () => {
     expect(stderr.read()).toBe("");
   });
 
+  it("generate-key prints a 32-byte base64 master key on stdout only", async () => {
+    const stdout = capture();
+    const stderr = capture();
+
+    await expect(
+      run(["generate-key"], { stdout: stdout.stream, stderr: stderr.stream }),
+    ).resolves.toBe(ExitCode.Success);
+
+    const out = stdout.read().trim();
+    // stdout carries ONLY the key (so it can be piped/captured cleanly).
+    expect(out.split("\n")).toHaveLength(1);
+    expect(Buffer.from(out, "base64")).toHaveLength(32);
+    // Guidance + the env var name go to stderr, never stdout.
+    expect(stderr.read()).toContain("VAULT_MASTER_KEY");
+    expect(stdout.read()).not.toContain("VAULT_MASTER_KEY");
+  });
+
+  it("generate-key is random (not a stored/tracked constant)", async () => {
+    const a = capture();
+    const b = capture();
+    await run(["generate-key"], { stdout: a.stream, stderr: capture().stream });
+    await run(["generate", "key"], { stdout: b.stream, stderr: capture().stream });
+    // The `generate key` positional form works too, and yields a distinct key.
+    expect(b.read().trim().length).toBeGreaterThan(0);
+    expect(a.read().trim()).not.toBe(b.read().trim());
+  });
+
   it("init writes metadata, generated client, and credential cache", async () => {
     const cwd = await makeTempDir();
     const stdout = capture();

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { prisma } from "@repo/db";
 import { Card } from "@repo/ui/card";
+import { activityActionFilter } from "../../lib/audit";
 import { requireUser } from "../../lib/tenancy";
 import { planLabel } from "../../lib/plan";
 import { createProject } from "./actions";
@@ -105,7 +106,7 @@ export default async function DashboardPage({
     0,
   );
   const activity = await prisma.auditLog.findMany({
-    where: { organizationId: selected.id },
+    where: { organizationId: selected.id, ...activityActionFilter() },
     orderBy: { createdAt: "desc" },
     take: 4,
     include: { user: { select: { name: true, email: true } } },
