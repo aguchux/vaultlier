@@ -124,6 +124,11 @@ describe("parseArgs", () => {
     expect(r.flags.help).toBe(true);
   });
 
+  it("parses version flags", () => {
+    expect(parseArgs(["--version"]).flags.version).toBe(true);
+    expect(parseArgs(["-v"]).flags.version).toBe(true);
+  });
+
   it("collects KEY=VALUE args after a command as positionals", () => {
     const r = parseArgs(["set", "DATABASE_URL=postgres://x", "RETRIES=3", "--env=prod"]);
     expect(r.command).toBe("set");
@@ -144,6 +149,18 @@ describe("maskApiKey", () => {
 });
 
 describe("run", () => {
+  it("prints the CLI version", async () => {
+    const stdout = capture();
+    const stderr = capture();
+
+    await expect(
+      run(["--version"], { stdout: stdout.stream, stderr: stderr.stream }),
+    ).resolves.toBe(ExitCode.Success);
+
+    expect(stdout.read()).toBe("0.1.12\n");
+    expect(stderr.read()).toBe("");
+  });
+
   it("init writes metadata, generated client, and credential cache", async () => {
     const cwd = await makeTempDir();
     const stdout = capture();
