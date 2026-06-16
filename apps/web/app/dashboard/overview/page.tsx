@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Activity, Cloud, Folder, KeyRound, Users } from "lucide-react";
 import { prisma } from "@repo/db";
+import { BackButton } from "@repo/ui/back-button";
 import { Card } from "@repo/ui/card";
 import { requireUser } from "../../../lib/tenancy";
 
@@ -52,11 +53,14 @@ export default async function OverviewPage({
   const suffix = `?organizationId=${selected.id}`;
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Overview</h1>
-        <p className="mt-1 text-sm text-ink-500">
-          Security and usage snapshot for {selected.name}.
-        </p>
+      <div className="flex items-start gap-3">
+        <BackButton href={`/dashboard${suffix}`} className="mt-1" />
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Overview</h1>
+          <p className="mt-1 text-sm text-ink-500">
+            Security and usage snapshot for {selected.name}.
+          </p>
+        </div>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <OverviewMetric
@@ -85,7 +89,7 @@ export default async function OverviewPage({
         />
       </div>
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-        <Card className="border-black/10 p-6 shadow-none">
+        <Card className="border-border p-6 shadow-none">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="font-semibold">Projects</h2>
@@ -119,7 +123,7 @@ export default async function OverviewPage({
             ))}
           </div>
         </Card>
-        <Card className="border-black/10 p-6 shadow-none">
+        <Card className="border-border p-6 shadow-none">
           <h2 className="flex items-center gap-2 font-semibold">
             <Activity className="h-4 w-4 text-brand-600" /> Recent activity
           </h2>

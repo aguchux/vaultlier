@@ -1,5 +1,6 @@
 import { Mail, Shield, Trash2, UserPlus, Users } from "lucide-react";
 import { prisma } from "@repo/db";
+import { BackButton } from "@repo/ui/back-button";
 import { Card } from "@repo/ui/card";
 import { planLabel } from "../../../lib/plan";
 import { organizationDeletionBlockers } from "../../../lib/resource-policy";
@@ -71,17 +72,23 @@ export default async function OrganizationsPage({
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Organizations</h1>
-          <p className="mt-1 text-sm text-ink-500">
-            Manage organization members and role-based access.
-          </p>
+        <div className="flex items-start gap-3">
+          <BackButton
+            href={`/dashboard?organizationId=${selected.id}`}
+            className="mt-1"
+          />
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Organizations</h1>
+            <p className="mt-1 text-sm text-ink-500">
+              Manage organization members and role-based access.
+            </p>
+          </div>
         </div>
         <OrganizationCreateButton action={createOrganization} />
       </div>
 
       <div className="grid items-start gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
-        <Card className="overflow-hidden border-black/10 p-2 shadow-none">
+        <Card className="overflow-hidden border-border p-2 shadow-none">
           {organizations.map((org) => (
             <a
               key={org.id}
@@ -105,7 +112,7 @@ export default async function OrganizationsPage({
         </Card>
 
         <div className="space-y-6">
-          <Card className="border-black/10 p-6 shadow-none">
+          <Card className="border-border p-6 shadow-none">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="flex items-center gap-3">
                 <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-600 text-sm font-semibold text-white">
@@ -156,7 +163,7 @@ export default async function OrganizationsPage({
           </Card>
 
           {canManage ? (
-            <Card className="border-black/10 p-6 shadow-none">
+            <Card className="border-border p-6 shadow-none">
               <h2 className="flex items-center gap-2 font-semibold">
                 <UserPlus className="h-4 w-4 text-brand-600" /> Invite member
               </h2>
@@ -196,7 +203,7 @@ export default async function OrganizationsPage({
             </Card>
           ) : null}
 
-          <Card className="overflow-hidden border-black/10 shadow-none">
+          <Card className="overflow-hidden border-border shadow-none">
             <div className="flex items-center justify-between border-b border-black/5 px-6 py-4">
               <div>
                 <h2 className="flex items-center gap-2 font-semibold">
@@ -213,7 +220,7 @@ export default async function OrganizationsPage({
             <div className="overflow-x-auto">
               <table className="w-full min-w-[680px] text-left text-sm">
                 <thead>
-                  <tr className="border-b border-black/5 bg-ink-50/40 text-xs text-ink-500">
+                  <tr className="border-b border-border bg-ink-50/40 text-xs text-ink-500 dark:bg-white/5 dark:text-ink-300">
                     <th className="px-6 py-3">User</th>
                     <th className="px-4 py-3">Role</th>
                     <th className="px-4 py-3">Joined</th>
@@ -230,7 +237,7 @@ export default async function OrganizationsPage({
                       <tr key={membership.id}>
                         <td className="px-6 py-3.5">
                           <div className="flex items-center gap-3">
-                            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-ink-100 text-xs font-semibold">
+                            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-ink-100 text-xs font-semibold dark:bg-white/10 dark:text-ink-100">
                               {initials(
                                 membership.user.name ?? membership.user.email,
                               )}
@@ -279,7 +286,7 @@ export default async function OrganizationsPage({
                               </button>
                             </form>
                           ) : (
-                            <span className="rounded-full bg-ink-50 px-2.5 py-1 text-xs font-medium capitalize">
+                            <span className="rounded-full bg-ink-50 px-2.5 py-1 text-xs font-medium capitalize dark:bg-white/10 dark:text-ink-200">
                               {membership.role.toLowerCase()}
                             </span>
                           )}
@@ -319,7 +326,7 @@ export default async function OrganizationsPage({
           </Card>
 
           {selected.invitations.length > 0 ? (
-            <Card className="border-black/10 p-6 shadow-none">
+            <Card className="border-border p-6 shadow-none">
               <h2 className="flex items-center gap-2 font-semibold">
                 <Mail className="h-4 w-4 text-brand-600" /> Pending invitations
               </h2>

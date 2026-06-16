@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Folder } from "lucide-react";
 import { prisma } from "@repo/db";
+import { BackButton } from "@repo/ui/back-button";
 import { Card } from "@repo/ui/card";
 import { environmentDeletionBlockers } from "../../../lib/resource-policy";
 import { canManageProject, requireUser } from "../../../lib/tenancy";
@@ -49,13 +50,19 @@ export default async function EnvironmentsPage({
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Environments</h1>
-        <p className="mt-1 text-sm text-ink-500">
-          Add, rename, and remove project environments in {selected.name}.
-        </p>
+      <div className="flex items-start gap-3">
+        <BackButton
+          href={`/dashboard?organizationId=${selected.id}`}
+          className="mt-1"
+        />
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Environments</h1>
+          <p className="mt-1 text-sm text-ink-500">
+            Add, rename, and remove project environments in {selected.name}.
+          </p>
+        </div>
       </div>
-      <Card className="overflow-hidden border-black/10 shadow-none">
+      <Card className="overflow-hidden border-border shadow-none">
         <div className="flex items-center justify-between border-b border-black/5 px-6 py-4">
           <div>
             <h2 className="font-semibold">{selected.name}</h2>

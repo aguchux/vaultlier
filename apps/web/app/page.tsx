@@ -39,7 +39,7 @@ const FEATURES = [
 
 export default function Home(): React.JSX.Element {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-bg text-fg">
       <SiteHeader />
       <main className="mx-auto max-w-7xl px-6 lg:px-8">
         <Hero />
@@ -54,11 +54,13 @@ function Hero(): React.JSX.Element {
   return (
     <section className="grid items-center gap-12 py-12 lg:grid-cols-2 lg:gap-16 lg:py-20">
       <div>
-        <h1 className="text-5xl font-bold leading-[1.05] tracking-tight text-ink-900 sm:text-6xl">
+        <h1 className="text-5xl font-bold leading-[1.05] tracking-tight text-fg sm:text-6xl">
           Configuration secrets, secured.{" "}
-          <span className="text-brand-600">Develop with confidence.</span>
+          <span className="text-brand-600 dark:text-brand-400">
+            Develop with confidence.
+          </span>
         </h1>
-        <p className="mt-6 max-w-md text-lg leading-relaxed text-ink-500">
+        <p className="mt-6 max-w-md text-lg leading-relaxed text-muted">
           Vaultlier is a Node.js library and platform for managing application
           configuration in a sealed vault — without exposing environment
           variables locally.
@@ -81,8 +83,8 @@ function Hero(): React.JSX.Element {
           </Button>
         </div>
 
-        <p className="mt-6 inline-flex items-center gap-2 text-sm text-ink-500">
-          <ShieldCheck className="h-4 w-4 text-brand-600" />
+        <p className="mt-6 inline-flex items-center gap-2 text-sm text-muted">
+          <ShieldCheck className="h-4 w-4 text-brand-600 dark:text-brand-400" />
           End-to-end encrypted. Audit logged. Built for teams.
         </p>
       </div>
@@ -97,17 +99,15 @@ function Hero(): React.JSX.Element {
 
 function SecretsBadge(): React.JSX.Element {
   return (
-    <div className="mt-4 flex items-center gap-4 rounded-2xl border border-black/5 bg-white p-4 shadow-sm">
+    <div className="mt-4 flex items-center gap-4 rounded-2xl border border-border bg-surface p-4 shadow-sm">
       <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-brand-600 text-white">
         <Lock className="h-5 w-5" />
       </span>
       <div>
-        <p className="text-sm font-semibold text-ink-900">
+        <p className="text-sm font-semibold text-fg">
           Secrets never touch disk.
         </p>
-        <p className="text-sm text-ink-500">
-          Only in-memory. Always encrypted.
-        </p>
+        <p className="text-sm text-muted">Only in-memory. Always encrypted.</p>
       </div>
     </div>
   );
@@ -115,7 +115,7 @@ function SecretsBadge(): React.JSX.Element {
 
 function FeatureRow(): React.JSX.Element {
   return (
-    <section className="grid gap-8 border-t border-black/5 py-12 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6 lg:py-16">
+    <section className="grid gap-8 border-t border-border py-12 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6 lg:py-16">
       {FEATURES.map((feature) => (
         <FeatureCard key={feature.title} {...feature} />
       ))}

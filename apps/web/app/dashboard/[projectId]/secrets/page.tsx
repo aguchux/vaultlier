@@ -1,4 +1,5 @@
 import { prisma } from "@repo/db";
+import { BackButton } from "@repo/ui/back-button";
 import { readExternal } from "../../../../lib/storage";
 import { decryptSecret } from "../../../../lib/vault-crypto";
 import { toWireType } from "../../../../lib/vault-wire";
@@ -96,14 +97,17 @@ export default async function SecretsPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-ink-900 dark:text-white">
-          {project.name} variables
-        </h1>
-        <p className="mt-1 text-sm text-ink-500 dark:text-ink-400">
-          Manage environment variables per environment. Values are encrypted at
-          rest and resolved by the SDK at runtime.
-        </p>
+      <div className="flex items-start gap-3">
+        <BackButton href={`/dashboard/${projectId}`} className="mt-1" />
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-ink-900 dark:text-white">
+            {project.name} variables
+          </h1>
+          <p className="mt-1 text-sm text-ink-500 dark:text-ink-400">
+            Manage environment variables per environment. Values are encrypted
+            at rest and resolved by the SDK at runtime.
+          </p>
+        </div>
       </div>
       <SecretsEditor
         tabs={tabs}

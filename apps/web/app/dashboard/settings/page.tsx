@@ -1,5 +1,6 @@
 import { Building2 } from "lucide-react";
 import { prisma } from "@repo/db";
+import { BackButton } from "@repo/ui/back-button";
 import { Card } from "@repo/ui/card";
 import { canManageOrganization, requireUser } from "../../../lib/tenancy";
 import { renameOrganization } from "../organization-actions";
@@ -29,15 +30,21 @@ export default async function OrganizationSettingsPage({
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">
-          Organization Settings
-        </h1>
-        <p className="mt-1 text-sm text-ink-500">
-          Configuration details for {selected.name}.
-        </p>
+      <div className="flex items-start gap-3">
+        <BackButton
+          href={`/dashboard?organizationId=${selected.id}`}
+          className="mt-1"
+        />
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Organization Settings
+          </h1>
+          <p className="mt-1 text-sm text-ink-500">
+            Configuration details for {selected.name}.
+          </p>
+        </div>
       </div>
-      <Card className="border-black/10 p-6 shadow-none">
+      <Card className="border-border p-6 shadow-none">
         <h2 className="flex items-center gap-2 font-semibold">
           <Building2 className="h-4 w-4 text-brand-600" /> General
         </h2>

@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { KeyRound, ShieldAlert } from "lucide-react";
 import { prisma } from "@repo/db";
+import { BackButton } from "@repo/ui/back-button";
 import { Card } from "@repo/ui/card";
 import {
   canManageProject,
@@ -47,14 +48,17 @@ export default async function ApiKeysPage({
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">API Keys</h1>
-        <p className="mt-1 text-sm text-ink-500">
-          Create credentials for one project at a time. Keys never cross project
-          boundaries.
-        </p>
+      <div className="flex items-start gap-3">
+        <BackButton href="/dashboard" className="mt-1" />
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">API Keys</h1>
+          <p className="mt-1 text-sm text-ink-500">
+            Create credentials for one project at a time. Keys never cross
+            project boundaries.
+          </p>
+        </div>
       </div>
-      <Card className="border-black/10 p-6 shadow-none">
+      <Card className="border-border p-6 shadow-none">
         <label className="text-sm font-semibold">
           Target project
           <span className="mt-1 block text-xs font-normal text-ink-500">
@@ -68,7 +72,7 @@ export default async function ApiKeysPage({
         </label>
       </Card>
       {target ? (
-        <Card className="border-black/10 p-6 shadow-none">
+        <Card className="border-border p-6 shadow-none">
           <div className="mb-5 flex items-center justify-between gap-4 rounded-xl bg-brand-50 px-4 py-3">
             <div>
               <p className="text-xs font-medium uppercase tracking-wider text-brand-700">

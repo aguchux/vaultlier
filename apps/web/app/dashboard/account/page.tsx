@@ -1,5 +1,6 @@
 import { Laptop, ShieldCheck } from "lucide-react";
 import { prisma } from "@repo/db";
+import { BackButton } from "@repo/ui/back-button";
 import { Card } from "@repo/ui/card";
 import { requireUser } from "../../../lib/tenancy";
 import { revokeCliToken } from "./actions";
@@ -31,14 +32,17 @@ export default async function AccountPage(): Promise<React.JSX.Element> {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Account</h1>
-        <p className="mt-1 text-sm text-ink-500">
-          Signed in as {user.email}.
-        </p>
+      <div className="flex items-start gap-3">
+        <BackButton href="/dashboard" className="mt-1" />
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Account</h1>
+          <p className="mt-1 text-sm text-ink-500">
+            Signed in as {user.email}.
+          </p>
+        </div>
       </div>
 
-      <Card className="border-black/10 p-6 shadow-none">
+      <Card className="border-border p-6 shadow-none">
         <h2 className="flex items-center gap-2 font-semibold">
           <Laptop className="h-4 w-4 text-brand-600" /> CLI devices
         </h2>

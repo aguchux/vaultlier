@@ -1,5 +1,6 @@
 import { KeyRound, Layers, ScrollText, Settings, Variable } from "lucide-react";
 import { prisma } from "@repo/db";
+import { BackButton } from "@repo/ui/back-button";
 import { Button } from "@repo/ui/button";
 import { Card } from "@repo/ui/card";
 import { requireProjectAccess, requireUser } from "../../../lib/tenancy";
@@ -38,13 +39,16 @@ export default async function ProjectPage({
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-ink-900">
-            {project.name}
-          </h1>
-          <p className="mt-1 font-mono text-sm text-ink-400">
-            {project.publicId} · schema v{project.schemaVersion}
-          </p>
+        <div className="flex items-start gap-3">
+          <BackButton href="/dashboard" className="mt-1" />
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-ink-900">
+              {project.name}
+            </h1>
+            <p className="mt-1 font-mono text-sm text-ink-400">
+              {project.publicId} · schema v{project.schemaVersion}
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Button href={`/dashboard/${project.id}/secrets`} size="sm">

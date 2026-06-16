@@ -1,4 +1,5 @@
 import { prisma } from "@repo/db";
+import { BackButton } from "@repo/ui/back-button";
 import { Button } from "@repo/ui/button";
 import { Card } from "@repo/ui/card";
 import {
@@ -47,19 +48,22 @@ export default async function ProjectSettingsPage({
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-ink-900">
-          Project settings
-        </h1>
-        <p className="mt-1 text-sm text-ink-500">
-          <a
-            href={`/dashboard/${project.id}`}
-            className="text-brand-700 hover:underline"
-          >
-            {project.name}
-          </a>{" "}
-          · created {project.createdAt.toLocaleDateString()}
-        </p>
+      <div className="flex items-start gap-3">
+        <BackButton href={`/dashboard/${project.id}`} className="mt-1" />
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-ink-900">
+            Project settings
+          </h1>
+          <p className="mt-1 text-sm text-ink-500">
+            <a
+              href={`/dashboard/${project.id}`}
+              className="text-brand-700 hover:underline"
+            >
+              {project.name}
+            </a>{" "}
+            · created {project.createdAt.toLocaleDateString()}
+          </p>
+        </div>
       </div>
 
       <Card className="p-6">

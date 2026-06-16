@@ -144,7 +144,7 @@ export default async function DashboardPage({
       </div>
 
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <Card className="overflow-hidden border-black/10 shadow-none">
+        <Card className="overflow-hidden border-border shadow-none">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/5 px-5 py-4">
             <div className="flex items-center gap-3">
               <ChevronDown className="h-4 w-4 text-ink-500" />

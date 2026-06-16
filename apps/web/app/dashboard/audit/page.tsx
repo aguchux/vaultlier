@@ -1,5 +1,6 @@
 import { ScrollText } from "lucide-react";
 import { prisma } from "@repo/db";
+import { BackButton } from "@repo/ui/back-button";
 import { Card } from "@repo/ui/card";
 import { requireUser } from "../../../lib/tenancy";
 
@@ -32,13 +33,19 @@ export default async function AuditPage({
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Audit Logs</h1>
-        <p className="mt-1 text-sm text-ink-500">
-          Append-only access and change history for {selected.name}.
-        </p>
+      <div className="flex items-start gap-3">
+        <BackButton
+          href={`/dashboard?organizationId=${selected.id}`}
+          className="mt-1"
+        />
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Audit Logs</h1>
+          <p className="mt-1 text-sm text-ink-500">
+            Append-only access and change history for {selected.name}.
+          </p>
+        </div>
       </div>
-      <Card className="overflow-hidden border-black/10 shadow-none">
+      <Card className="overflow-hidden border-border shadow-none">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[800px] text-left text-sm">
             <thead>
