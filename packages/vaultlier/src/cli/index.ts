@@ -231,7 +231,9 @@ export function maskApiKey(apiKey: string): string {
   return maskSecret(apiKey);
 }
 
-const CLI_VERSION = "0.1.14";
+// Keep in sync with package.json "version" — the --version test asserts they
+// match (reading package.json), so CI fails if this is forgotten on a bump.
+const CLI_VERSION = "0.1.15";
 
 const HELP = `vaultlier - sealed configuration vault CLI
 
