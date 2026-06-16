@@ -8,7 +8,6 @@ import {
   Folder,
   KeyRound,
   MoreHorizontal,
-  Plus,
   ShieldCheck,
   Users,
 } from "lucide-react";
@@ -17,6 +16,7 @@ import { Card } from "@repo/ui/card";
 import { requireUser } from "../../lib/tenancy";
 import { planLabel } from "../../lib/plan";
 import { createProject } from "./actions";
+import { ProjectCreateButton } from "./project-create-dialog";
 
 type SearchParams = Promise<{
   organizationId?: string;
@@ -322,33 +322,11 @@ export default async function DashboardPage({
           <h3 className="text-sm font-semibold">Quick actions</h3>
           <div className="mt-3 space-y-2">
             {canManage ? (
-              <details className="group">
-                <summary className="flex h-10 cursor-pointer list-none items-center justify-center gap-2 rounded-xl bg-brand-600 text-sm font-medium text-white hover:bg-brand-700 [&::-webkit-details-marker]:hidden">
-                  <Plus className="h-4 w-4" /> New Project
-                </summary>
-                <form
-                  action={createProject}
-                  className="mt-2 space-y-2 rounded-xl bg-ink-50 p-3"
-                >
-                  <input
-                    type="hidden"
-                    name="organizationId"
-                    value={selected.id}
-                  />
-                  <input
-                    name="name"
-                    required
-                    placeholder="Project name"
-                    className="h-10 w-full rounded-xl border border-black/10 bg-white px-3 text-sm outline-none focus:border-brand-300 focus:ring-2 focus:ring-brand-100"
-                  />
-                  <button
-                    type="submit"
-                    className="h-9 w-full rounded-xl bg-ink-900 text-sm font-medium text-white hover:bg-ink-800"
-                  >
-                    Create project
-                  </button>
-                </form>
-              </details>
+              <ProjectCreateButton
+                action={createProject}
+                organizationId={selected.id}
+                organizationName={selected.name}
+              />
             ) : null}
             <Link
               href={`/dashboard/organizations?organizationId=${selected.id}`}
