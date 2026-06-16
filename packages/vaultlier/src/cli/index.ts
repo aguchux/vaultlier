@@ -231,7 +231,7 @@ export function maskApiKey(apiKey: string): string {
   return maskSecret(apiKey);
 }
 
-const CLI_VERSION = "0.1.12";
+const CLI_VERSION = "0.1.14";
 
 const HELP = `vaultlier - sealed configuration vault CLI
 

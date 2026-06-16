@@ -27,6 +27,10 @@ export const config = [
     },
   },
   {
-    ignores: ["dist/**"],
+    // Build/output dirs are never linted. `coverage/` in particular is written
+    // (and a `coverage/.tmp` scratch dir created/removed) by `test:coverage`,
+    // which runs concurrently with `lint` in CI — without this ignore ESLint's
+    // glob walk races that dir and crashes with ENOENT.
+    ignores: ["dist/**", "coverage/**"],
   },
 ];

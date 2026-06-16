@@ -157,7 +157,12 @@ describe("run", () => {
       run(["--version"], { stdout: stdout.stream, stderr: stderr.stream }),
     ).resolves.toBe(ExitCode.Success);
 
-    expect(stdout.read()).toBe("0.1.12\n");
+    // Pin to package.json so the reported --version can't silently drift from
+    // the published version (it did: shipped 0.1.14 while reporting 0.1.12).
+    const pkg = JSON.parse(
+      await readFile(new URL("../../package.json", import.meta.url), "utf8"),
+    ) as { version: string };
+    expect(stdout.read()).toBe(`${pkg.version}\n`);
     expect(stderr.read()).toBe("");
   });
 
