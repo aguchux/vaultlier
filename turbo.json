@@ -2,6 +2,7 @@
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
   "globalPassThroughEnv": [
+    "NEXT_RUNTIME",
     "PATH",
     "PATHEXT",
     "SYSTEMROOT",

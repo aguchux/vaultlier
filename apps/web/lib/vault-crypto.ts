@@ -58,6 +58,29 @@ function masterKey(kekId: string): Buffer {
   return key;
 }
 
+/**
+ * Whether the current vault master key is present and well-formed (32-byte
+ * base64). Use this to render a graceful "not configured" state instead of
+ * letting encrypt/decrypt throw mid-request.
+ */
+export function isVaultConfigured(): boolean {
+  try {
+    masterKey(CURRENT_KEK_ID);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Assert the vault is configured, throwing the descriptive masterKey() error if
+ * not. Called at startup (instrumentation) so a misconfigured deployment fails
+ * fast and loudly rather than only when the first secret is read or written.
+ */
+export function assertVaultConfigured(): void {
+  masterKey(CURRENT_KEK_ID);
+}
+
 function deriveProjectKek(projectId: string, kekId: string): Buffer {
   return Buffer.from(
     hkdfSync(

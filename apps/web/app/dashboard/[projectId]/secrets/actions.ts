@@ -16,7 +16,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
 import type { KeyType } from "@repo/db";
 import { logAudit } from "../../../../lib/audit";
-import { encryptSecret } from "../../../../lib/vault-crypto";
+import { encryptSecret, isVaultConfigured } from "../../../../lib/vault-crypto";
 import { removeSealed, writeSealed } from "../../../../lib/storage";
 import { fromWireType, normalizeValue } from "../../../../lib/vault-wire";
 import { canWriteSecrets } from "../../../../lib/rbac";
@@ -45,6 +45,12 @@ export async function setSecret(
   const { project, role } = await requireProjectAccess(user.id, projectId);
   if (!canWriteSecrets(role)) {
     return { error: "Your role can't change secret values." };
+  }
+  if (!isVaultConfigured()) {
+    return {
+      error:
+        "Vault not configured: set VAULT_MASTER_KEY on the server (vaultlier generate-key) before saving secrets.",
+    };
   }
 
   const environmentId = String(formData.get("environmentId") ?? "");
