@@ -1,6 +1,6 @@
 {
   "name": "vaultlier",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "Typed runtime client, CLI, and type generation for the Vaultlier sealed configuration vault. Replaces the .env workflow without writing secret values to disk.",
   "license": "MIT",
   "type": "module",
