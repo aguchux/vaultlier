@@ -27,6 +27,7 @@ const toc = [
   { id: "key-resolution", title: "API key resolution" },
   { id: "caching", title: "Caching" },
   { id: "errors", title: "Error handling" },
+  { id: "storage", title: "Storage backends" },
 ];
 
 export default function SdkPage(): React.JSX.Element {
@@ -197,6 +198,16 @@ try {
         because each client owns a separate memory cache. See the{" "}
         <A href="/quickstart">Quickstart</A>.
       </Callout>
+
+      <H2 id="storage">Storage backends</H2>
+      <P>
+        The SDK call is identical no matter where a project&apos;s secrets are
+        stored. If a project uses a bring-your-own backend (S3 or Postgres),
+        Vaultlier reads from it and falls back to its own encrypted copy if that
+        store is briefly unreachable, so <InlineCode>vault()</InlineCode> stays
+        resilient through a backend outage. See{" "}
+        <A href="/storage">Storage backends</A>.
+      </P>
     </DocPage>
   );
 }

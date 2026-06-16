@@ -12,6 +12,7 @@ export const metadata = createDocsMetadata({
 const toc = [
   { id: "vs-dotenv", title: "How is this different from .env?" },
   { id: "projectid-secret", title: "Is the project id a secret?" },
+  { id: "where-stored", title: "Where are my secrets stored?" },
   { id: "offline", title: "Does it work offline?" },
   { id: "no-key", title: "Can I init without an API key?" },
   { id: "self-host", title: "Can I self-host?" },
@@ -41,6 +42,15 @@ export default function FaqPage(): React.JSX.Element {
         No. The project id (<InlineCode>prj_…</InlineCode>) is a public
         identifier and is safe to commit. Reading or writing a project always
         additionally requires a valid API key, so the id alone grants nothing.
+      </P>
+
+      <H2 id="where-stored">Where are my secrets stored?</H2>
+      <P>
+        By default, encrypted in Vaultlier&apos;s managed store. Per project you
+        can switch to a bring-your-own backend — your own S3 bucket or Postgres
+        database — and the values live in infrastructure you own. Either way
+        Vaultlier encrypts every value before it is stored, so the backend only
+        ever holds ciphertext. See <A href="/storage">Storage backends</A>.
       </P>
 
       <H2 id="offline">Does it work offline?</H2>
