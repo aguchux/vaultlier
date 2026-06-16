@@ -13,7 +13,11 @@
 
 import type { VaultKeySchema, VaultlierConfig } from "../schema/types.js";
 
-export const DEFAULT_API_URL = "https://vaultlier.com";
+// Canonical host. The deployment 308-redirects the apex (vaultlier.com) to the
+// www host, and a cross-host redirect makes fetch drop the Authorization
+// header — which surfaces as a confusing "Missing or malformed API key". Target
+// the canonical host directly so requests are never redirected.
+export const DEFAULT_API_URL = "https://www.vaultlier.com";
 export const API_URL_ENV = "VAULTLIER_API_URL";
 
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -34,6 +38,7 @@ export type FetchLike = (
     headers?: Record<string, string>;
     body?: string;
     signal?: AbortSignal;
+    redirect?: "follow" | "manual" | "error";
   },
 ) => Promise<{
   ok: boolean;
@@ -473,6 +478,10 @@ async function requestJson(
       },
       body: params.body !== undefined ? JSON.stringify(params.body) : undefined,
       signal: controller.signal,
+      // Don't auto-follow redirects: a cross-host redirect (e.g. apex -> www)
+      // makes fetch drop the Authorization header, which would otherwise surface
+      // as a misleading "missing API key". Surface the misconfigured URL instead.
+      redirect: "manual",
     });
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") {
@@ -487,6 +496,20 @@ async function requestJson(
     );
   } finally {
     clearTimeout(timer);
+  }
+
+  // A redirect means the configured host isn't canonical. We requested
+  // `redirect: "manual"`, so detect the 3xx (or an opaque-redirect status 0)
+  // and fail with a clear, actionable message rather than letting fetch follow
+  // it and silently drop the Authorization header.
+  const location = res.headers.get("location");
+  if ((res.status >= 300 && res.status < 400) || (res.status === 0 && location)) {
+    throw new PortalApiError(
+      "config/redirect",
+      `The portal URL ${options.apiUrl} redirects${location ? ` to ${new URL(location, options.apiUrl).origin}` : ""}. ` +
+        `Set ${API_URL_ENV} to the canonical URL (e.g. its https://www. host) so the API key is sent correctly.`,
+      { status: res.status },
+    );
   }
 
   const requestId = res.headers.get("x-request-id") ?? undefined;

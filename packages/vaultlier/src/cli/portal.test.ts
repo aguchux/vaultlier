@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_API_URL,
+  PortalApiError,
   createProject,
   listProjects,
   resolveApiUrl,
@@ -16,12 +17,35 @@ function jsonFetch(status: number, body: unknown): FetchLike {
   });
 }
 
+/** A fake that mimics a cross-host 3xx redirect (auth header would be dropped). */
+function redirectFetch(status: number, location: string): FetchLike {
+  return async () => ({
+    ok: false,
+    status,
+    headers: { get: (name: string) => (name === "location" ? location : null) },
+    json: async () => undefined,
+  });
+}
+
 const OPTIONS = { apiUrl: "https://portal.test", apiKey: "vlt_login_tok" };
 
 describe("resolveApiUrl", () => {
-  it("uses the same-origin hosted portal by default", () => {
-    expect(resolveApiUrl(undefined, {})).toBe("https://vaultlier.com");
-    expect(DEFAULT_API_URL).toBe("https://vaultlier.com");
+  it("defaults to the canonical www host (the apex 308-redirects, dropping auth)", () => {
+    expect(resolveApiUrl(undefined, {})).toBe("https://www.vaultlier.com");
+    expect(DEFAULT_API_URL).toBe("https://www.vaultlier.com");
+  });
+});
+
+describe("redirect handling", () => {
+  it("fails with an actionable config error instead of following a redirect", async () => {
+    const err = await listProjects({
+      apiUrl: "https://vaultlier.com",
+      apiKey: "vlt_login_tok",
+      fetchImpl: redirectFetch(308, "https://www.vaultlier.com/v1/projects"),
+    }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(PortalApiError);
+    expect((err as PortalApiError).code).toBe("config/redirect");
+    expect((err as PortalApiError).message).toContain("https://www.vaultlier.com");
   });
 });
 

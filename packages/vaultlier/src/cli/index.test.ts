@@ -157,7 +157,7 @@ describe("run", () => {
       run(["--version"], { stdout: stdout.stream, stderr: stderr.stream }),
     ).resolves.toBe(ExitCode.Success);
 
-    expect(stdout.read()).toBe("0.1.11\n");
+    expect(stdout.read()).toBe("0.1.12\n");
     expect(stderr.read()).toBe("");
   });
 

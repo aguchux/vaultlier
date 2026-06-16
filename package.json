@@ -32,6 +32,6 @@
     "packages/*"
   ],
   "dependencies": {
-    "vaultlier": "^0.1.9"
+    "vaultlier": "^0.1.12"
   }
 }
