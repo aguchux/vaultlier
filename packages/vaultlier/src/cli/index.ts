@@ -161,6 +161,7 @@ const SHORT_FLAGS: Record<string, string> = {
   k: "api-key",
   o: "output",
   p: "port",
+  v: "version",
   y: "yes",
 };
 
@@ -228,6 +229,8 @@ export function maskApiKey(apiKey: string): string {
   return maskSecret(apiKey);
 }
 
+const CLI_VERSION = "0.1.11";
+
 const HELP = `vaultlier - sealed configuration vault CLI
 
 Usage:
@@ -269,6 +272,7 @@ Options:
       --install              Install vaultlier dependency without prompting
       --no-install           Skip dependency install prompt
   -f, --force                Allow overwriting existing config metadata
+  -v, --version              Show the vaultlier CLI version
   -h, --help                 Show this help
 `;
 
@@ -296,6 +300,11 @@ export async function run(
 
   if (flags.generate === true && (!command || command === "generate")) {
     return generateCommand(flags, ctx);
+  }
+
+  if (flags.version === true) {
+    ctx.stdout.write(`${CLI_VERSION}\n`);
+    return ExitCode.Success;
   }
 
   if (!command || flags.help) {
