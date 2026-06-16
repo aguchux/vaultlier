@@ -12,6 +12,7 @@ import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { stdin as processStdin, stdout as processStdout } from "node:process";
 import { createInterface } from "node:readline/promises";
+import { fileURLToPath } from "node:url";
 import { generateClient } from "../generator/index.js";
 import {
   API_KEY_ENV,
@@ -231,9 +232,36 @@ export function maskApiKey(apiKey: string): string {
   return maskSecret(apiKey);
 }
 
-// Keep in sync with package.json "version" — the --version test asserts they
-// match (reading package.json), so CI fails if this is forgotten on a bump.
-const CLI_VERSION = "0.1.15";
+let cliVersion: string | undefined;
+
+async function readCliVersion(): Promise<string> {
+  if (cliVersion !== undefined) {
+    return cliVersion;
+  }
+
+  let dir = dirname(fileURLToPath(import.meta.url));
+  for (;;) {
+    try {
+      const pkg = JSON.parse(await readFile(join(dir, "package.json"), "utf8")) as {
+        name?: unknown;
+        version?: unknown;
+      };
+      if (pkg.name === "vaultlier" && typeof pkg.version === "string") {
+        cliVersion = pkg.version;
+        return cliVersion;
+      }
+    } catch {
+      // Keep walking up from src/cli or dist until the package root is found.
+    }
+
+    const parent = dirname(dir);
+    if (parent === dir) {
+      cliVersion = "0.0.0";
+      return cliVersion;
+    }
+    dir = parent;
+  }
+}
 
 const HELP = `vaultlier - sealed configuration vault CLI
 
@@ -321,7 +349,7 @@ export async function run(
   }
 
   if (flags.version === true) {
-    ctx.stdout.write(`${CLI_VERSION}\n`);
+    ctx.stdout.write(`${await readCliVersion()}\n`);
     return ExitCode.Success;
   }
 
