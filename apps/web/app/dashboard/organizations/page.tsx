@@ -1,6 +1,7 @@
 import { Mail, Shield, Trash2, UserPlus, Users } from "lucide-react";
 import { prisma } from "@repo/db";
 import { Card } from "@repo/ui/card";
+import { planLabel } from "../../../lib/plan";
 import { organizationDeletionBlockers } from "../../../lib/resource-policy";
 import {
   canManageOrganization,
@@ -112,9 +113,9 @@ export default async function OrganizationsPage({
                 </span>
                 <div>
                   <h2 className="text-lg font-semibold">{selected.name}</h2>
-                  <p className="text-sm capitalize text-ink-500">
-                    {selected.plan.toLowerCase()} plan - your role:{" "}
-                    {actorRole.toLowerCase()}
+                  <p className="text-sm text-ink-500">
+                    {planLabel(selected.plan)} plan - your role:{" "}
+                    <span className="capitalize">{actorRole.toLowerCase()}</span>
                   </p>
                   {selected.description ? (
                     <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-500">

@@ -28,7 +28,7 @@ async function main(): Promise<void> {
   const org = await prisma.organization.upsert({
     where: { slug: "demo" },
     update: {},
-    create: { name: "Demo Org", slug: "demo", plan: "HOBBY" },
+    create: { name: "Demo Org", slug: "demo", plan: "PREMIUM" },
   });
 
   const user = await prisma.user.upsert({

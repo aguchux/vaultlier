@@ -99,7 +99,7 @@ model Organization {
   name        String
   description String?
   slug        String   @unique
-  plan        Plan     @default(HOBBY)
+  plan        Plan     @default(PREMIUM)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -163,11 +163,12 @@ model Project {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  environments Environment[]
-  keys         Key[]
-  apiKeys      ApiKey[]
-  auditLogs    AuditLog[]
+  organization  Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  environments  Environment[]
+  keys          Key[]
+  apiKeys       ApiKey[]
+  auditLogs     AuditLog[]
+  storageConfig StorageAdapterConfig?
 
   @@index([organizationId])
   @@map("projects")
@@ -221,6 +222,10 @@ model KeyVersion {
   authTag       Bytes
   // Identifier of the per-project KEK used, to support rotation.
   kekId         String
+  // True when the authoritative external store write failed and this DB row is
+  // the fallback copy awaiting reconciliation. Always false for the default
+  // Vaultlier-managed backend (where the DB row is authoritative).
+  needsResync   Boolean  @default(false)
   createdAt     DateTime @default(now())
   createdById   String?
 
@@ -230,6 +235,42 @@ model KeyVersion {
   @@unique([keyId, environmentId, version])
   @@index([keyId, environmentId])
   @@map("key_versions")
+}
+
+// ---------------------------------------------------------------------------
+// Storage backends (bring-your-own remote storage)
+// ---------------------------------------------------------------------------
+
+// Per-project remote storage backend. When set to a non-default adapter
+// (S3/Postgres), that backend becomes the authoritative store for the
+// project's encrypted secret blobs; the Vaultlier DB keeps a fallback copy.
+//
+// The adapter's credentials/settings live as a single sealed JSON blob
+// (encryptSecret over the project KEK, exactly like a secret value) so the DB
+// never holds plaintext credentials. `metadata` carries only non-sensitive
+// display fields (bucket, region, host) — never access keys or connection
+// strings.
+model StorageAdapterConfig {
+  id             String             @id @default(cuid())
+  projectId      String             @unique
+  adapterType    StorageAdapterType @default(VAULTLIER)
+  // Sealed adapter config JSON. Opaque to the DB.
+  ciphertext     Bytes
+  nonce          Bytes
+  authTag        Bytes
+  kekId          String
+  // Non-sensitive display metadata only.
+  metadata       Json?
+  lastTestedAt   DateTime?
+  lastTestStatus String?
+  lastTestError  String?
+  createdById    String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("storage_adapter_configs")
 }
 
 // ---------------------------------------------------------------------------
@@ -354,6 +395,7 @@ model AuditLog {
 
 enum Plan {
   HOBBY
+  PREMIUM
   TEAM
   ENTERPRISE
 }
@@ -370,6 +412,12 @@ enum KeyType {
   BOOLEAN
   NUMBER
   JSON
+}
+
+enum StorageAdapterType {
+  VAULTLIER
+  S3
+  POSTGRES
 }
 
 enum CliLoginStatus {
@@ -406,4 +454,7 @@ enum AuditAction {
   CLI_LOGIN_APPROVED
   CLI_LOGIN_DENIED
   CLI_TOKEN_REVOKED
+  STORAGE_CONFIG_UPDATED
+  STORAGE_CONFIG_TESTED
+  STORAGE_SYNC_FAILED
 }

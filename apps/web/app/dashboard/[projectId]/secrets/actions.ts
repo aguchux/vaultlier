@@ -17,6 +17,7 @@ import { prisma } from "@repo/db";
 import type { KeyType } from "@repo/db";
 import { logAudit } from "../../../../lib/audit";
 import { encryptSecret } from "../../../../lib/vault-crypto";
+import { removeSealed, writeSealed } from "../../../../lib/storage";
 import { fromWireType, normalizeValue } from "../../../../lib/vault-wire";
 import { canWriteSecrets } from "../../../../lib/rbac";
 import { requireProjectAccess, requireUser } from "../../../../lib/tenancy";
@@ -103,19 +104,47 @@ export async function setSecret(
         orderBy: { version: "desc" },
         select: { version: true },
       });
+      const version = (latest?.version ?? 0) + 1;
       const sealed = encryptSecret(project.id, normalized.plaintext);
+      // Prisma's Bytes type rejects Buffer's ArrayBufferLike backing.
+      const blob = {
+        ciphertext: new Uint8Array(sealed.ciphertext),
+        nonce: new Uint8Array(sealed.nonce),
+        authTag: new Uint8Array(sealed.authTag),
+        kekId: sealed.kekId,
+      };
+      // Push to the project's external store (if any) before recording the DB
+      // fallback copy; drift is flagged when the external write fails.
+      const { needsResync } = await writeSealed(
+        project,
+        { environment: environment.name, keyName: name, version },
+        blob,
+      );
       await tx.keyVersion.create({
         data: {
           keyId: key.id,
           environmentId: environment.id,
-          version: (latest?.version ?? 0) + 1,
-          // Prisma's Bytes type rejects Buffer's ArrayBufferLike backing.
-          ciphertext: new Uint8Array(sealed.ciphertext),
-          nonce: new Uint8Array(sealed.nonce),
-          authTag: new Uint8Array(sealed.authTag),
-          kekId: sealed.kekId,
+          version,
+          ciphertext: blob.ciphertext,
+          nonce: blob.nonce,
+          authTag: blob.authTag,
+          kekId: blob.kekId,
+          needsResync,
         },
       });
+      if (needsResync) {
+        await logAudit(
+          {
+            action: "STORAGE_SYNC_FAILED",
+            userId: user.id,
+            organizationId: project.organizationId,
+            projectId,
+            environment: environment.name,
+            metadata: { keys: [name], source: "portal" },
+          },
+          tx,
+        );
+      }
       await logAudit(
         {
           action: "SECRET_WRITTEN",
@@ -182,6 +211,13 @@ export async function deleteSecret(
       },
       tx,
     );
+  });
+
+  // Best-effort removal from the external store; the DB delete above is
+  // authoritative for what the runtime serves.
+  await removeSealed(project, {
+    environment: environment.name,
+    keyName: key.name,
   });
 
   revalidatePath(`/dashboard/${projectId}/secrets`);

@@ -1,4 +1,4 @@
-import { Building2, CreditCard, ShieldCheck } from "lucide-react";
+import { Building2 } from "lucide-react";
 import { prisma } from "@repo/db";
 import { Card } from "@repo/ui/card";
 import { canManageOrganization, requireUser } from "../../../lib/tenancy";
@@ -34,7 +34,7 @@ export default async function OrganizationSettingsPage({
           Organization Settings
         </h1>
         <p className="mt-1 text-sm text-ink-500">
-          Configuration and plan details for {selected.name}.
+          Configuration details for {selected.name}.
         </p>
       </div>
       <Card className="border-black/10 p-6 shadow-none">
@@ -90,33 +90,6 @@ export default async function OrganizationSettingsPage({
             <dd className="mt-1 font-medium">{selected._count.memberships}</dd>
           </div>
         </dl>
-      </Card>
-      <Card className="border-black/10 p-6 shadow-none">
-        <h2 className="flex items-center gap-2 font-semibold">
-          <CreditCard className="h-4 w-4 text-brand-600" /> Plan
-        </h2>
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-xl bg-ink-50 p-4">
-          <div>
-            <p className="font-semibold capitalize">
-              {selected.plan.toLowerCase()}
-            </p>
-            <p className="mt-1 text-sm text-ink-500">
-              Billing and limits are organization-wide.
-            </p>
-          </div>
-          <span className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-ink-600 shadow-sm">
-            Current plan
-          </span>
-        </div>
-      </Card>
-      <Card className="border-brand-100 bg-brand-50/40 p-6 shadow-none">
-        <h2 className="flex items-center gap-2 font-semibold text-brand-800">
-          <ShieldCheck className="h-4 w-4" /> Security boundary
-        </h2>
-        <p className="mt-2 text-sm leading-6 text-ink-600">
-          Members and roles are organization-scoped. API keys remain
-          project-scoped and must be created from a selected project.
-        </p>
       </Card>
     </div>
   );

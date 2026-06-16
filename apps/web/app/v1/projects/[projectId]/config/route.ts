@@ -9,6 +9,7 @@
 import { prisma } from "@repo/db";
 import { apiError, apiJson, authenticate } from "../../../../../lib/api";
 import { logAudit } from "../../../../../lib/audit";
+import { readExternal } from "../../../../../lib/storage";
 import { decryptSecret } from "../../../../../lib/vault-crypto";
 import { coerceValue, keyInScope } from "../../../../../lib/vault-wire";
 
@@ -60,12 +61,20 @@ export async function GET(
     if (!keyInScope(key, environment)) continue;
     const version = key.versions[0];
     if (!version) continue;
-    const plaintext = decryptSecret(project.id, {
+    // Prefer the project's external store when configured; fall back to the DB
+    // copy on miss/outage so reads keep working through a backend failure.
+    const external = await readExternal(project, {
+      environment,
+      keyName: key.name,
+      version: version.version,
+    });
+    const sealed = external ?? {
       ciphertext: Buffer.from(version.ciphertext),
       nonce: Buffer.from(version.nonce),
       authTag: Buffer.from(version.authTag),
       kekId: version.kekId,
-    });
+    };
+    const plaintext = decryptSecret(project.id, sealed);
     config[key.name] = coerceValue(plaintext, key.type);
     readKeys.push(key.name);
   }

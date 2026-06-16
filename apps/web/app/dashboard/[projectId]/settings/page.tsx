@@ -14,6 +14,11 @@ import {
 } from "../../actions";
 import { ApiKeysPanel } from "./api-keys-panel";
 import { DestroyProjectForm } from "./destroy-form";
+import { StoragePanel } from "./storage-panel";
+import {
+  configureStorageAdapter,
+  testStorageAdapter,
+} from "./storage-actions";
 
 export default async function ProjectSettingsPage({
   params,
@@ -28,6 +33,16 @@ export default async function ProjectSettingsPage({
   const apiKeys = await prisma.apiKey.findMany({
     where: { projectId: project.id, revokedAt: null },
     orderBy: { createdAt: "desc" },
+  });
+
+  const storageConfig = await prisma.storageAdapterConfig.findUnique({
+    where: { projectId: project.id },
+    select: {
+      adapterType: true,
+      metadata: true,
+      lastTestStatus: true,
+      lastTestedAt: true,
+    },
   });
 
   return (
@@ -96,6 +111,22 @@ export default async function ProjectSettingsPage({
           canManage={canManage}
           createAction={createApiKey.bind(null, project.id)}
           revokeAction={revokeApiKey.bind(null, project.id)}
+        />
+      </Card>
+
+      <Card className="p-6">
+        <StoragePanel
+          current={{
+            adapterType: storageConfig?.adapterType ?? "VAULTLIER",
+            metadata:
+              (storageConfig?.metadata as Record<string, unknown> | null) ??
+              null,
+            lastTestStatus: storageConfig?.lastTestStatus ?? null,
+            lastTestedAt: storageConfig?.lastTestedAt?.toISOString() ?? null,
+          }}
+          canManage={canManage}
+          saveAction={configureStorageAdapter.bind(null, project.id)}
+          testAction={testStorageAdapter.bind(null, project.id)}
         />
       </Card>
 

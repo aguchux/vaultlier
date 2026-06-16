@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
-  Building2,
   Cloud,
   Folder,
   KeyRound,
@@ -15,7 +14,6 @@ import { cn } from "@repo/ui/lib/cn";
 
 const items = [
   { label: "Overview", href: "/dashboard/overview", icon: LayoutDashboard },
-  { label: "Organizations", href: "/dashboard/organizations", icon: Building2 },
   { label: "Projects", href: "/dashboard", icon: Folder },
   { label: "Environments", href: "/dashboard/environments", icon: Cloud },
   { label: "API Keys", href: "/dashboard/api-keys", icon: KeyRound },

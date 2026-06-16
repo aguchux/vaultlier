@@ -93,7 +93,7 @@ export function OrganizationCreateDialog({
               <p className="text-xs font-medium uppercase tracking-wider text-ink-400">
                 Initial plan
               </p>
-              <p className="mt-1 font-semibold">Hobby</p>
+              <p className="mt-1 font-semibold">Premium</p>
             </div>
             <div>
               <p className="text-xs font-medium uppercase tracking-wider text-ink-400">

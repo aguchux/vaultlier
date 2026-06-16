@@ -27,6 +27,17 @@ export interface SealedValue {
   kekId: string;
 }
 
+/**
+ * Decryption input. Byte fields accept Uint8Array so sealed blobs read back
+ * from an external store (which use Uint8Array) work without copying.
+ */
+export interface SealedInput {
+  ciphertext: Uint8Array;
+  nonce: Uint8Array;
+  authTag: Uint8Array;
+  kekId: string;
+}
+
 function masterKey(kekId: string): Buffer {
   // Future generations would read VAULT_MASTER_KEY_MK2 etc.; mk1 is the
   // canonical VAULT_MASTER_KEY.
@@ -75,7 +86,7 @@ export function encryptSecret(projectId: string, plaintext: string): SealedValue
   return { ciphertext, nonce, authTag: cipher.getAuthTag(), kekId };
 }
 
-export function decryptSecret(projectId: string, sealed: SealedValue): string {
+export function decryptSecret(projectId: string, sealed: SealedInput): string {
   const decipher = createDecipheriv(
     "aes-256-gcm",
     deriveProjectKek(projectId, sealed.kekId),

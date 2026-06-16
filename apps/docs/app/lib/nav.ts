@@ -34,6 +34,7 @@ export const nav: NavSection[] = [
       { title: "Projects", href: "/projects" },
       { title: "Environments", href: "/environments" },
       { title: "API Keys", href: "/api-keys" },
+      { title: "Storage backends", href: "/storage" },
     ],
   },
   {

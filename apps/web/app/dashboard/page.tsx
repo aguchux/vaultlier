@@ -15,6 +15,7 @@ import {
 import { prisma } from "@repo/db";
 import { Card } from "@repo/ui/card";
 import { requireUser } from "../../lib/tenancy";
+import { planLabel } from "../../lib/plan";
 import { createProject } from "./actions";
 
 type SearchParams = Promise<{
@@ -284,8 +285,8 @@ export default async function DashboardPage({
             </span>
             <div className="min-w-0 flex-1">
               <h2 className="truncate font-semibold">{selected.name}</h2>
-              <p className="text-xs capitalize text-ink-500">
-                {selected.plan.toLowerCase()} plan
+              <p className="text-xs text-ink-500">
+                {planLabel(selected.plan)} plan
               </p>
             </div>
             <ShieldCheck className="h-5 w-5 text-brand-600" />

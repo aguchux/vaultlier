@@ -1,4 +1,5 @@
 import { prisma } from "@repo/db";
+import { readExternal } from "../../../../lib/storage";
 import { decryptSecret } from "../../../../lib/vault-crypto";
 import { toWireType } from "../../../../lib/vault-wire";
 import { canWriteSecrets } from "../../../../lib/rbac";
@@ -44,39 +45,54 @@ export default async function SecretsPage({
   ]);
 
   // Pull the latest version per (key, environment). `distinct` with desc order
-  // returns the newest row for each environmentId.
-  const tabs: EnvironmentTab[] = environments.map((environment) => {
-    const variables = keys
-      .map((key) => {
-        const version = key.versions.find(
-          (candidate) => candidate.environmentId === environment.id,
-        );
-        const value = version
-          ? decryptSecret(project.id, {
-              ciphertext: Buffer.from(version.ciphertext),
-              nonce: Buffer.from(version.nonce),
-              authTag: Buffer.from(version.authTag),
-              kekId: version.kekId,
-            })
-          : null;
-        return {
-          keyId: key.id,
-          name: key.name,
-          type: toWireType(key.type),
-          value,
-          version: version?.version ?? null,
-        };
-      })
+  // returns the newest row for each environmentId. Values are read from the
+  // project's external store when configured, falling back to the DB copy.
+  const tabs: EnvironmentTab[] = await Promise.all(
+    environments.map(async (environment) => {
+      const resolved = await Promise.all(
+        keys.map(async (key) => {
+          const version = key.versions.find(
+            (candidate) => candidate.environmentId === environment.id,
+          );
+          if (!version) {
+            return {
+              keyId: key.id,
+              name: key.name,
+              type: toWireType(key.type),
+              value: null as string | null,
+              version: null as number | null,
+            };
+          }
+          const external = await readExternal(project, {
+            environment: environment.name,
+            keyName: key.name,
+            version: version.version,
+          });
+          const sealed = external ?? {
+            ciphertext: Buffer.from(version.ciphertext),
+            nonce: Buffer.from(version.nonce),
+            authTag: Buffer.from(version.authTag),
+            kekId: version.kekId,
+          };
+          return {
+            keyId: key.id,
+            name: key.name,
+            type: toWireType(key.type),
+            value: decryptSecret(project.id, sealed) as string | null,
+            version: version.version as number | null,
+          };
+        }),
+      );
       // Only show keys that have a value in this environment; new keys are
       // added explicitly through the editor.
-      .filter((variable) => variable.value !== null);
-
-    return {
-      id: environment.id,
-      name: environment.name,
-      variables,
-    };
-  });
+      const variables = resolved.filter((variable) => variable.value !== null);
+      return {
+        id: environment.id,
+        name: environment.name,
+        variables,
+      };
+    }),
+  );
 
   return (
     <div className="space-y-6">

@@ -11,6 +11,7 @@
 import { prisma } from "@repo/db";
 import { apiError, apiJson, authenticate } from "../../../../../lib/api";
 import { logAudit } from "../../../../../lib/audit";
+import { writeSealed } from "../../../../../lib/storage";
 import { encryptSecret } from "../../../../../lib/vault-crypto";
 import { keyInScope, normalizeValue } from "../../../../../lib/vault-wire";
 
@@ -120,26 +121,41 @@ export async function PUT(
     writes.push({ keyId: key.id, name, plaintext: normalized.plaintext });
   }
 
-  const versions = await prisma.$transaction(async (tx) => {
+  const { versions, drifted } = await prisma.$transaction(async (tx) => {
     const result: Record<string, number> = {};
+    const driftedKeys: string[] = [];
     for (const write of writes) {
       const latest = await tx.keyVersion.findFirst({
         where: { keyId: write.keyId, environmentId: env.id },
         orderBy: { version: "desc" },
         select: { version: true },
       });
+      const version = (latest?.version ?? 0) + 1;
       const sealed = encryptSecret(project.id, write.plaintext);
+      // Copy into fresh ArrayBuffer-backed arrays: Prisma's Bytes type rejects
+      // Buffer's ArrayBufferLike backing.
+      const blob = {
+        ciphertext: new Uint8Array(sealed.ciphertext),
+        nonce: new Uint8Array(sealed.nonce),
+        authTag: new Uint8Array(sealed.authTag),
+        kekId: sealed.kekId,
+      };
+      const { needsResync } = await writeSealed(
+        project,
+        { environment: body.environment, keyName: write.name, version },
+        blob,
+      );
+      if (needsResync) driftedKeys.push(write.name);
       const created = await tx.keyVersion.create({
         data: {
           keyId: write.keyId,
           environmentId: env.id,
-          version: (latest?.version ?? 0) + 1,
-          // Copy into fresh ArrayBuffer-backed arrays: Prisma's Bytes type
-          // rejects Buffer's ArrayBufferLike backing.
-          ciphertext: new Uint8Array(sealed.ciphertext),
-          nonce: new Uint8Array(sealed.nonce),
-          authTag: new Uint8Array(sealed.authTag),
-          kekId: sealed.kekId,
+          version,
+          ciphertext: blob.ciphertext,
+          nonce: blob.nonce,
+          authTag: blob.authTag,
+          kekId: blob.kekId,
+          needsResync,
         },
       });
       result[write.name] = created.version;
@@ -156,11 +172,28 @@ export async function PUT(
       },
       tx,
     );
-    return result;
+    if (driftedKeys.length > 0) {
+      await logAudit(
+        {
+          action: "STORAGE_SYNC_FAILED",
+          organizationId: project.organizationId,
+          projectId: project.id,
+          apiKeyId: apiKey.id,
+          environment: body.environment,
+          ipAddress,
+          metadata: { keys: driftedKeys, requestId },
+        },
+        tx,
+      );
+    }
+    return { versions: result, drifted: driftedKeys.length > 0 };
   });
 
   return apiJson(requestId, {
     environment: body.environment,
     versions,
+    // Surfaced so the CLI can warn that the external store is behind; the
+    // value is safely stored in Vaultlier's fallback in the meantime.
+    ...(drifted ? { warning: "external_storage_unavailable" } : {}),
   });
 }

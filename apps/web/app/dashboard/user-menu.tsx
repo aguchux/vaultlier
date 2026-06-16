@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import {
+  Building2,
+  ChevronDown,
+  CreditCard,
+  Laptop,
+} from "lucide-react";
 
 export function UserMenu({
   name,
@@ -41,7 +46,7 @@ export function UserMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
-        className="flex items-center gap-2 rounded-xl p-1.5 hover:bg-ink-50"
+        className="flex items-center gap-2 rounded-xl p-1.5 hover:bg-ink-50 dark:hover:bg-white/5"
       >
         {image ? (
           // eslint-disable-next-line @next/next/no-img-element -- OAuth avatar URL is user-provided.
@@ -62,28 +67,41 @@ export function UserMenu({
       {open ? (
         <div
           role="menu"
-          className="absolute right-0 top-12 w-60 rounded-2xl border border-black/10 bg-white p-2 shadow-xl"
+          className="absolute right-0 top-12 w-60 rounded-2xl border border-black/10 bg-white p-2 shadow-xl dark:border-white/10 dark:bg-ink-800"
         >
           <div className="px-3 py-2">
-            <p className="truncate text-sm font-semibold">
+            <p className="truncate text-sm font-semibold dark:text-white">
               {name ?? "Vaultlier user"}
             </p>
-            <p className="truncate text-xs text-ink-500">{email}</p>
+            <p className="truncate text-xs text-ink-500 dark:text-ink-400">
+              {email}
+            </p>
           </div>
-          <div className="my-1 border-t border-black/5" />
-          <Link
+          <div className="my-1 border-t border-black/5 dark:border-white/10" />
+          <MenuLink
+            href="/dashboard/organizations"
+            icon={Building2}
+            label="Organizations"
+            onNavigate={() => setOpen(false)}
+          />
+          <MenuLink
+            href="/dashboard/settings"
+            icon={CreditCard}
+            label="Plan & Settings"
+            onNavigate={() => setOpen(false)}
+          />
+          <MenuLink
             href="/dashboard/account"
-            role="menuitem"
-            onClick={() => setOpen(false)}
-            className="block w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-ink-700 hover:bg-ink-50"
-          >
-            Account &amp; devices
-          </Link>
+            icon={Laptop}
+            label="Account & devices"
+            onNavigate={() => setOpen(false)}
+          />
+          <div className="my-1 border-t border-black/5 dark:border-white/10" />
           <form action={signOutAction}>
             <button
               type="submit"
               role="menuitem"
-              className="w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-ink-700 hover:bg-ink-50"
+              className="w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-ink-700 hover:bg-ink-50 dark:text-ink-300 dark:hover:bg-white/5"
             >
               Sign out
             </button>
@@ -91,5 +109,29 @@ export function UserMenu({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function MenuLink({
+  href,
+  icon: Icon,
+  label,
+  onNavigate,
+}: {
+  href: string;
+  icon: typeof Building2;
+  label: string;
+  onNavigate: () => void;
+}): React.JSX.Element {
+  return (
+    <Link
+      href={href}
+      role="menuitem"
+      onClick={onNavigate}
+      className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-medium text-ink-700 hover:bg-ink-50 dark:text-ink-300 dark:hover:bg-white/5"
+    >
+      <Icon className="h-4 w-4 text-ink-400" />
+      {label}
+    </Link>
   );
 }
