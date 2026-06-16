@@ -22,18 +22,24 @@ import {
 import type { VaultKeySchema, VaultlierConfig } from "../schema/types.js";
 import { looksLikeApiKey, maskSecret } from "../schema/security.js";
 import { parseConfig, validateConfig } from "../schema/validate.js";
-import { DEV_HOST, DEV_PORT, buildSnapshot, startDevServer } from "./dev.js";
+import { DEV_HOST, DEV_PORT, startDevServer } from "./dev.js";
+import type { DevPortal } from "./dev.js";
 import {
   API_URL_ENV,
   PortalApiError,
+  createEnvironmentRemote,
   createProject,
+  deleteEnvironmentRemote,
   diffSchemas,
   fetchEnvironmentConfig,
   fetchPortalSchema,
+  fetchStorageConfig,
   isDiffEmpty,
   listProjects,
   pushPortalSchema,
   putEnvironmentSecrets,
+  putStorageConfig,
+  renameEnvironmentRemote,
   resolveApiUrl,
 } from "./portal.js";
 import type {
@@ -812,49 +818,63 @@ async function devCommand(
   const host = typeof flags.host === "string" ? flags.host : DEV_HOST;
 
   const credentials = await readCredentialCache(ctx.cwd);
-
-  // Fetch values for the local "dev" environment only — never staging/prod.
-  const remoteEnv = "dev";
-  let remote: { environment: string; values: Record<string, unknown> } | null =
-    null;
-  let remoteWarning: string | null = null;
   const apiKey = await resolveCliApiKey(flags, ctx);
-  if (!apiKey) {
-    remoteWarning = `${API_KEY_ENV} is not set — remote values are unavailable. Set ${API_KEY_ENV} to access remote environments.`;
-  } else if (!config.environments.includes(remoteEnv)) {
-    remoteWarning = `This project has no "${remoteEnv}" environment — remote values were not fetched.`;
-  } else {
-    try {
-      const values = await ctx.ui.spin(
-        `fetching remote "${remoteEnv}" values`,
-        () =>
-          fetchEnvironmentConfig(
-            portalOptions(flags, ctx, apiKey),
-            config.projectId,
-            remoteEnv,
-          ),
-      );
-      remote = { environment: remoteEnv, values };
-    } catch (err) {
-      const message =
-        err instanceof PortalApiError || err instanceof Error
-          ? err.message
-          : String(err);
-      remoteWarning = `Could not fetch remote "${remoteEnv}" values: ${message}`;
-    }
-  }
 
-  const snapshot = buildSnapshot({
-    config,
-    configFile: configPath.name,
-    maskedApiKey: credentials?.apiKey ? maskApiKey(credentials.apiKey) : null,
-    remote,
-    remoteWarning,
-  });
+  // With an API key the UI manages the project live against the remote; without
+  // one it is read-only and shows local metadata. The key stays in this
+  // process — the loopback server proxies to the portal and never sends it to
+  // the browser.
+  let portal: DevPortal | null = null;
+  let readOnlyReason: string | null = null;
+  if (apiKey) {
+    const options = portalOptions(flags, ctx, apiKey);
+    const projectId = config.projectId;
+    portal = {
+      getValues: async (environment) => {
+        const values = await fetchEnvironmentConfig(options, projectId, environment);
+        return Object.fromEntries(
+          Object.entries(values).map(([name, value]) => [
+            name,
+            typeof value === "string" ? value : JSON.stringify(value),
+          ]),
+        );
+      },
+      setValues: (environment, secrets) =>
+        putEnvironmentSecrets(options, projectId, environment, secrets).then(
+          () => undefined,
+        ),
+      createEnvironment: (name) =>
+        createEnvironmentRemote(options, projectId, name),
+      renameEnvironment: (name, to) =>
+        renameEnvironmentRemote(options, projectId, name, to),
+      deleteEnvironment: (name) =>
+        deleteEnvironmentRemote(options, projectId, name),
+      getStorage: async () => {
+        const view = await fetchStorageConfig(options, projectId);
+        return {
+          adapterType: view.adapterType,
+          metadata: view.metadata,
+          lastTestStatus: view.lastTestStatus,
+        };
+      },
+      setStorage: (adapterType, cfg) =>
+        putStorageConfig(options, projectId, adapterType, cfg),
+    };
+  } else {
+    readOnlyReason = `${API_KEY_ENV} is not set — connect an API key to manage this project. Set ${API_KEY_ENV} or run \`vaultlier config set apiKey=…\`.`;
+  }
 
   let handle;
   try {
-    handle = await startDevServer(snapshot, { port, host });
+    handle = await startDevServer({
+      config,
+      configFile: configPath.name,
+      maskedApiKey: credentials?.apiKey ? maskApiKey(credentials.apiKey) : null,
+      portal,
+      readOnlyReason,
+      port,
+      host,
+    });
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
     if (code === "EADDRINUSE") {
@@ -869,17 +889,14 @@ async function devCommand(
 
   const { style } = ctx.ui;
   ctx.stdout.write(
-    `${style.bold("vaultlier dev")} - config UI for ${style.cyan(config.projectId)}\n`,
+    `${style.bold("vaultlier dev")} - manage ${style.cyan(config.projectId)}\n`,
   );
-  if (remote) {
+  if (portal) {
     ctx.stdout.write(
-      `  showing metadata + remote "${remote.environment}" values - other envs stay sealed\n`,
+      `  edit values, environments, and storage - changes sync to the remote\n`,
     );
   } else {
-    ctx.stdout.write(`  showing metadata only - secrets stay sealed\n`);
-  }
-  if (remoteWarning) {
-    ctx.ui.warn(remoteWarning);
+    ctx.ui.warn(readOnlyReason ?? "read-only");
   }
   ctx.stdout.write(`  ${style.cyan(handle.url)}\n`);
   ctx.stdout.write(`  ${style.dim("press Ctrl+C to stop")}\n`);

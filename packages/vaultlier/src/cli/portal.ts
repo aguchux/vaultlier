@@ -148,6 +148,100 @@ export async function putEnvironmentSecrets(
   return { environment: result.environment, versions: result.versions };
 }
 
+/** Current storage backend for a project (display metadata only, no creds). */
+export interface StorageConfigView {
+  adapterType: "VAULTLIER" | "S3" | "POSTGRES";
+  metadata: Record<string, unknown> | null;
+  lastTestStatus: string | null;
+  lastTestedAt: string | null;
+}
+
+/** GET the project's storage backend configuration. Never returns credentials. */
+export async function fetchStorageConfig(
+  options: PortalClientOptions,
+  projectId: string,
+): Promise<StorageConfigView> {
+  const payload = await requestJson(options, {
+    method: "GET",
+    path: `/v1/projects/${encodeURIComponent(projectId)}/storage`,
+  });
+  const doc = payload as Partial<StorageConfigView> | null;
+  if (doc === null || typeof doc !== "object" || typeof doc.adapterType !== "string") {
+    throw new PortalApiError(
+      "response/invalid",
+      "portal returned an unexpected storage payload",
+    );
+  }
+  return {
+    adapterType: doc.adapterType,
+    metadata:
+      doc.metadata && typeof doc.metadata === "object" ? doc.metadata : null,
+    lastTestStatus:
+      typeof doc.lastTestStatus === "string" ? doc.lastTestStatus : null,
+    lastTestedAt:
+      typeof doc.lastTestedAt === "string" ? doc.lastTestedAt : null,
+  };
+}
+
+/**
+ * PUT the project's storage backend. `config` carries adapter-specific
+ * credentials (omitted/ignored for VAULTLIER). The portal tests the connection
+ * before persisting; credentials are sealed server-side and never echoed back.
+ * Requires an ADMIN+ key.
+ */
+export async function putStorageConfig(
+  options: PortalClientOptions,
+  projectId: string,
+  adapterType: "VAULTLIER" | "S3" | "POSTGRES",
+  config: Record<string, unknown>,
+): Promise<void> {
+  await requestJson(options, {
+    method: "PUT",
+    path: `/v1/projects/${encodeURIComponent(projectId)}/storage`,
+    body: { adapterType, config },
+  });
+}
+
+/** Create an environment on the portal (MEMBER+). */
+export async function createEnvironmentRemote(
+  options: PortalClientOptions,
+  projectId: string,
+  name: string,
+): Promise<void> {
+  await requestJson(options, {
+    method: "POST",
+    path: `/v1/projects/${encodeURIComponent(projectId)}/environments`,
+    body: { name },
+  });
+}
+
+/** Rename an environment on the portal, rewriting key scopes (ADMIN+). */
+export async function renameEnvironmentRemote(
+  options: PortalClientOptions,
+  projectId: string,
+  name: string,
+  to: string,
+): Promise<void> {
+  await requestJson(options, {
+    method: "PATCH",
+    path: `/v1/projects/${encodeURIComponent(projectId)}/environments`,
+    body: { name, to },
+  });
+}
+
+/** Delete an empty environment on the portal (ADMIN+). */
+export async function deleteEnvironmentRemote(
+  options: PortalClientOptions,
+  projectId: string,
+  name: string,
+): Promise<void> {
+  await requestJson(options, {
+    method: "DELETE",
+    path: `/v1/projects/${encodeURIComponent(projectId)}/environments`,
+    body: { name },
+  });
+}
+
 /**
  * GET the decrypted key/value map for one environment (`vaultlier dev` uses
  * this for the local "dev" environment only). Unlike the schema endpoints,

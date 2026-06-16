@@ -160,14 +160,37 @@ vaultlier set STRIPE_SECRET=sk_live_... FEATURE_NEW_FLOW=true -e prod`}</CodeBlo
 
       <H2 id="dev">dev</H2>
       <P>
-        Starts a read-only dashboard bound to loopback
-        (<InlineCode>http://127.0.0.1:9090</InlineCode>) showing your project
-        metadata. When an API key is available it also displays values for the{" "}
-        <strong>dev environment only</strong>; staging and prod values are never
-        read or displayed, and nothing is written to disk.
+        Starts a small management UI for the <strong>one project</strong> bound
+        in your local <InlineCode>vaultlier.json</InlineCode>, bound to loopback
+        (<InlineCode>http://127.0.0.1:9090</InlineCode>). It is a tiny portal that
+        stays in sync with the remote Vaultlier store — every change is written
+        straight through. From it you can:
       </P>
+      <UL>
+        <li>
+          View and edit (overwrite) environment variable <strong>values</strong>{" "}
+          per environment.
+        </li>
+        <li>
+          View and manage <strong>environments</strong> — create, rename, and
+          delete.
+        </li>
+        <li>
+          Manage the <strong>storage backend</strong> (Vaultlier, S3, Postgres),
+          which updates the project&apos;s remote settings.
+        </li>
+      </UL>
       <CodeBlock label="Terminal">{`vaultlier dev
 vaultlier dev --port=4000`}</CodeBlock>
+      <Callout tone="security" title="The API key stays on your machine">
+        The browser talks only to the loopback server, which proxies to the
+        portal using a key resolved from <InlineCode>--api-key</InlineCode>,{" "}
+        <InlineCode>VAULTLIER_API_KEY</InlineCode>, or the local credential
+        cache — the key is never sent to the page. Value edits and environment
+        changes need a <strong>member</strong> key; storage changes need an{" "}
+        <strong>admin</strong> key, exactly as the portal enforces. Without a key
+        the UI is read-only.
+      </Callout>
 
       <H2 id="whoami">whoami</H2>
       <P>Prints the resolved project context: project id, environments, and the masked API key.</P>
