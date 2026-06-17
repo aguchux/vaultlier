@@ -6,10 +6,10 @@ import { auth, signOut } from "../../lib/auth";
 import { DOCS_URL } from "../../lib/links";
 
 const NAV: { label: string; href: string; external?: boolean }[] = [
-  { label: "Product", href: "/#product" },
+  { label: "Product", href: "/product" },
+  { label: "Security", href: "/security" },
   { label: "Docs", href: DOCS_URL, external: true },
-  { label: "Security", href: `${DOCS_URL}/security`, external: true },
-  { label: "Company", href: "/#company" },
+  { label: "Contribute", href: "/contribute" },
 ];
 
 export async function SiteHeader(): Promise<React.JSX.Element> {

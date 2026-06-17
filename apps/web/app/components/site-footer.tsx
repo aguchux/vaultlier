@@ -2,10 +2,12 @@ import { Logo } from "@vaultlier/ui/logo";
 import { DOCS_URL, GITHUB_URL, NPM_URL } from "../../lib/links";
 
 const LINKS = [
+  { label: "Product", href: "/product", external: false },
+  { label: "Security", href: "/security", external: false },
+  { label: "Contribute", href: "/contribute", external: false },
   { label: "Docs", href: DOCS_URL },
   { label: "GitHub", href: GITHUB_URL },
   { label: "npm", href: NPM_URL },
-  { label: "Security", href: `${DOCS_URL}/security` },
 ];
 
 export function SiteFooter(): React.JSX.Element {
@@ -15,13 +17,14 @@ export function SiteFooter(): React.JSX.Element {
         <div className="flex items-center gap-3">
           <Logo />
         </div>
-        <nav className="flex items-center gap-6">
+        <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
           {LINKS.map((link) => (
             <a
               key={link.label}
               href={link.href}
-              target="_blank"
-              rel="noreferrer"
+              {...(link.external === false
+                ? {}
+                : { target: "_blank", rel: "noreferrer" })}
               className="text-sm text-ink-500 transition-colors hover:text-ink-900 dark:text-ink-400 dark:hover:text-white"
             >
               {link.label}
