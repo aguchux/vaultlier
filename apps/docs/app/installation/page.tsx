@@ -94,6 +94,25 @@ export default function InstallationPage(): React.JSX.Element {
       </P>
       <CodeBlock label="Terminal">{`export VAULTLIER_API_URL=https://vault.internal.example.com
 vaultlier pull --env=prod`}</CodeBlock>
+      <P>
+        The portal server itself requires a{" "}
+        <InlineCode>VAULT_MASTER_KEY</InlineCode> — a 32-byte base64 key used to
+        seal and unseal secret values. Generate one with{" "}
+        <A href="/cli#generate-key">
+          <InlineCode>vaultlier generate-key</InlineCode>
+        </A>{" "}
+        and set it in the deployment&apos;s server environment. It is validated
+        at startup: a portal without a valid key fails to boot rather than
+        serving broken secret operations.
+      </P>
+      <CodeBlock label="Terminal">{`# on the portal server (set once, never change)
+VAULT_MASTER_KEY=$(vaultlier generate-key)`}</CodeBlock>
+      <Callout tone="security">
+        Treat <InlineCode>VAULT_MASTER_KEY</InlineCode> like a root credential.
+        It is read only server-side and never exposed to the browser. Changing
+        or losing it makes every existing sealed secret unrecoverable — back it
+        up the way you would a database master password.
+      </Callout>
       <Callout tone="info">
         See the <A href="/cli">CLI reference</A> for the full flag list and the{" "}
         <A href="/sdk">SDK reference</A> for the <InlineCode>baseUrl</InlineCode>{" "}

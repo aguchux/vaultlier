@@ -970,12 +970,12 @@ async function scanCommand(
   );
   if (discovery.keys.length === 0) {
     ctx.ui.info("no env keys detected");
-    return ExitCode.Success;
-  }
-
-  ctx.ui.success(`detected ${discovery.keys.length} env keys`);
-  for (const key of discovery.keys) {
-    ctx.stdout.write(`  ${ctx.ui.style.cyan(key)}\n`);
+    // Don't return: stale scan-added keys may still need pruning below.
+  } else {
+    ctx.ui.success(`detected ${discovery.keys.length} env keys`);
+    for (const key of discovery.keys) {
+      ctx.stdout.write(`  ${ctx.ui.style.cyan(key)}\n`);
+    }
   }
 
   const configPath = await findConfigPath(ctx.cwd);
@@ -1444,30 +1444,42 @@ async function maybeMergeDetectedKeys(
   },
 ): Promise<VaultlierConfig> {
   const discovery = params.discovery ?? (await discoverEnvMetadata(ctx.cwd));
-  const { config: updatedConfig, added } = mergeKeysIntoConfig(
-    config,
-    discovery.keys,
-  );
+  const {
+    config: updatedConfig,
+    added,
+    removed,
+  } = mergeKeysIntoConfig(config, discovery.keys);
 
-  if (discovery.keys.length === 0 || added.length === 0) {
+  if (added.length === 0 && removed.length === 0) {
     if (params.command === "scan" && discovery.keys.length > 0) {
-      ctx.stdout.write("schema already includes detected keys\n");
+      ctx.stdout.write("schema already matches detected keys\n");
     }
     return config;
   }
 
-  ctx.stdout.write(
-    `detected ${added.length} new env keys for schema metadata\n`,
-  );
-  for (const key of added) {
-    ctx.stdout.write(`  ${ctx.ui.style.cyan(key)}\n`);
+  if (added.length > 0) {
+    ctx.stdout.write(
+      `detected ${added.length} new env keys for schema metadata\n`,
+    );
+    for (const key of added) {
+      ctx.stdout.write(`  + ${ctx.ui.style.cyan(key)}\n`);
+    }
+  }
+  if (removed.length > 0) {
+    // Stale scan-added keys no longer referenced in code or .env files.
+    ctx.stdout.write(
+      `removing ${removed.length} stale scan-added keys no longer detected\n`,
+    );
+    for (const key of removed) {
+      ctx.stdout.write(`  - ${ctx.ui.style.dim(key)}\n`);
+    }
   }
 
   let shouldUpdate = flags.yes === true;
   if (!shouldUpdate) {
     shouldUpdate = await confirm({
       prompt:
-        "Add detected keys to Vaultlier schema metadata? Values are ignored. [y/N] ",
+        "Update Vaultlier schema metadata to match detected keys? Values are ignored. [y/N] ",
       defaultValue: false,
       ctx,
     });

@@ -18,6 +18,13 @@ export interface VaultKeySchema {
   scopes?: VaultScope[];
   /** Default value for non-secret config. Never used for secret values. */
   default?: string | number | boolean | null;
+  /**
+   * How this key entered the config. `"scan"` marks a key auto-detected by
+   * `vaultlier scan`; such keys are pruned on a later scan if no longer
+   * detected. Keys added by hand or via `set` omit this and are never
+   * auto-removed.
+   */
+  source?: "scan";
 }
 
 /**

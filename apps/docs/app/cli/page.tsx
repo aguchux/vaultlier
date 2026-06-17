@@ -110,11 +110,59 @@ vaultlier config verify`}</CodeBlock>
       <H2 id="scan">scan</H2>
       <P>
         Detects environment-variable keys referenced in your code and{" "}
-        <InlineCode>.env</InlineCode> files and offers to add them to your schema
+        <InlineCode>.env</InlineCode> files and offers to reconcile your schema
         metadata. Values are ignored — only key names are read.
       </P>
       <CodeBlock label="Terminal">{`vaultlier scan          # report detected keys
-vaultlier scan --yes    # add them to vaultlier.json without prompting`}</CodeBlock>
+vaultlier scan --yes    # reconcile vaultlier.json without prompting`}</CodeBlock>
+      <P>
+        To avoid false positives, <InlineCode>scan</InlineCode> only recognizes
+        established environment-access idioms — never bare{" "}
+        <InlineCode>SCREAMING_SNAKE_CASE</InlineCode> constants:
+      </P>
+      <UL>
+        <li>
+          <InlineCode>.env</InlineCode> / <InlineCode>.env.*</InlineCode> file
+          keys
+        </li>
+        <li>
+          <InlineCode>process.env.X</InlineCode> /{" "}
+          <InlineCode>process.env[&quot;X&quot;]</InlineCode> (Node.js, Next.js)
+        </li>
+        <li>
+          <InlineCode>Deno.env.get(&quot;X&quot;)</InlineCode> (Deno)
+        </li>
+        <li>
+          <InlineCode>import.meta.env.X</InlineCode> (Vite, Astro, SvelteKit) —
+          framework built-ins like <InlineCode>MODE</InlineCode> are excluded
+        </li>
+        <li>
+          <InlineCode>configService.get(&quot;X&quot;)</InlineCode> /{" "}
+          <InlineCode>config.get(&quot;X&quot;)</InlineCode> (NestJS{" "}
+          <InlineCode>@nestjs/config</InlineCode>)
+        </li>
+        <li>
+          <InlineCode>env(&quot;X&quot;)</InlineCode> /{" "}
+          <InlineCode>getenv(&quot;X&quot;)</InlineCode> config helpers
+        </li>
+      </UL>
+      <P>
+        Compiled and build output is never scanned —{" "}
+        <InlineCode>node_modules</InlineCode>, <InlineCode>dist</InlineCode>,{" "}
+        <InlineCode>build</InlineCode>, <InlineCode>out</InlineCode>,{" "}
+        <InlineCode>output</InlineCode>, framework caches (
+        <InlineCode>.next</InlineCode>, <InlineCode>.nuxt</InlineCode>,{" "}
+        <InlineCode>.svelte-kit</InlineCode>, <InlineCode>.output</InlineCode>),
+        and any <InlineCode>outDir</InlineCode> declared in your{" "}
+        <InlineCode>tsconfig.json</InlineCode>.
+      </P>
+      <Callout tone="info" title="Self-correcting">
+        Each scan reconciles the schema with what your code actually uses. Keys
+        that <InlineCode>scan</InlineCode> previously added but no longer appear
+        anywhere are removed. Keys you added by hand or with{" "}
+        <InlineCode>set</InlineCode> are never touched — only scan-managed keys
+        are pruned.
+      </Callout>
 
       <H2 id="push-pull-diff">push / pull / diff</H2>
       <P>

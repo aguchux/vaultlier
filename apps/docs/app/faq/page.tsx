@@ -79,14 +79,25 @@ export VAULTLIER_API_KEY=vlt_live_...`}</CodeBlock>
         <A href="/installation">Installation</A>.
       </P>
       <P>
-        A self-hosted portal must set <InlineCode>VAULT_MASTER_KEY</InlineCode>{" "}
-        in its server environment — the key it uses to seal and unseal secret
-        values. Generate one with{" "}
+        A self-hosted portal <strong>must</strong> set{" "}
+        <InlineCode>VAULT_MASTER_KEY</InlineCode> in its server environment — the
+        32-byte base64 key it uses to seal and unseal secret values. Generate one
+        with{" "}
         <A href="/cli#generate-key">
           <InlineCode>vaultlier generate-key</InlineCode>
         </A>
-        , set it once, and keep it safe; without it, reads and writes of secret
-        values fail.
+        , set it once, and keep it safe.
+      </P>
+      <P>
+        This is enforced at startup: a portal launched without a valid{" "}
+        <InlineCode>VAULT_MASTER_KEY</InlineCode> fails to boot with a clear
+        error rather than serving broken secret operations. If the server is
+        already running and the key is missing, the variables page shows a
+        &quot;Vault not configured&quot; notice and stays read-only until the key
+        is set. The key is read only server-side — it is never created, shown, or
+        sent to the browser. Treat it like a root credential:{" "}
+        <strong>changing or losing it makes existing sealed secrets
+        unrecoverable</strong>. See <A href="/security#encryption">Security</A>.
       </P>
 
       <H2 id="rotate">How do I rotate an API key?</H2>
