@@ -13,6 +13,7 @@ const toc = [
   { id: "encryption", title: "Encryption at rest" },
   { id: "credentials", title: "Credential handling" },
   { id: "boundaries", title: "Trust boundaries" },
+  { id: "dependencies", title: "Dependencies & supply chain" },
   { id: "checklist", title: "Production checklist" },
 ];
 
@@ -100,6 +101,48 @@ export default function SecurityPage(): React.JSX.Element {
           surfaces dev-environment values — staging and prod stay sealed.
         </li>
       </UL>
+
+      <H2 id="dependencies">Dependencies &amp; supply chain</H2>
+      <P>
+        The <InlineCode>vaultlier</InlineCode> package ships with{" "}
+        <strong>zero runtime dependencies</strong>. Its{" "}
+        <InlineCode>package.json</InlineCode> declares no{" "}
+        <InlineCode>dependencies</InlineCode> field at all — installing it pulls
+        in no third-party code. The runtime client and CLI are built solely on
+        Node.js built-ins (<InlineCode>node:crypto</InlineCode>,{" "}
+        <InlineCode>node:fs</InlineCode>, <InlineCode>node:http</InlineCode>, and
+        the standard <InlineCode>fetch</InlineCode>).
+      </P>
+      <UL>
+        <li>
+          <strong>No transitive attack surface.</strong> Because nothing is
+          installed beneath Vaultlier, there is no dependency tree for a
+          compromised or typosquatted package to hide in — the class of
+          supply-chain risk that affects most npm packages simply does not apply.
+        </li>
+        <li>
+          <strong>Auditable in full.</strong> What you install is what we
+          publish: the bundled source plus type definitions. You can read every
+          line that runs in your process without chasing nested{" "}
+          <InlineCode>node_modules</InlineCode>.
+        </li>
+        <li>
+          <strong>Tooling is dev-only.</strong> Build and test tools (TypeScript,
+          tsup, Vitest, ESLint) live under <InlineCode>devDependencies</InlineCode>{" "}
+          and never reach a consumer&apos;s install or runtime.
+        </li>
+        <li>
+          <strong>Encryption uses vetted primitives.</strong> Secret sealing
+          relies on Node&apos;s native AES-256-GCM and HKDF-SHA256 — no
+          hand-rolled or bundled crypto libraries.
+        </li>
+      </UL>
+      <Callout tone="security" title="Why this matters">
+        Every dependency you add is code you implicitly trust and must keep
+        patched. Keeping Vaultlier dependency-free means there are no third-party
+        advisories to track, no transitive versions to pin, and a vastly smaller
+        surface for vulnerabilities to enter through.
+      </Callout>
 
       <H2 id="checklist">Production checklist</H2>
       <UL>
