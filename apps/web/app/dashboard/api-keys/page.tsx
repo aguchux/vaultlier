@@ -1,8 +1,8 @@
 import { Suspense } from "react";
 import { KeyRound, ShieldAlert } from "lucide-react";
-import { prisma } from "@repo/db";
-import { BackButton } from "@repo/ui/back-button";
-import { Card } from "@repo/ui/card";
+import { prisma } from "@vaultlier/db";
+import { BackButton } from "@vaultlier/ui/back-button";
+import { Card } from "@vaultlier/ui/card";
 import {
   canManageProject,
   requireProjectAccess,

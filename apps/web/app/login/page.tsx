@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Logo } from "@repo/ui/logo";
-import { Button } from "@repo/ui/button";
-import { Card } from "@repo/ui/card";
+import { Logo } from "@vaultlier/ui/logo";
+import { Button } from "@vaultlier/ui/button";
+import { Card } from "@vaultlier/ui/card";
 import { auth, signIn } from "../../lib/auth";
 
 export const metadata: Metadata = {

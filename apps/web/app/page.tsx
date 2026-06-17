@@ -7,8 +7,8 @@ import {
   TerminalSquare,
   Users,
 } from "lucide-react";
-import { Button } from "@repo/ui/button";
-import { FeatureCard } from "@repo/ui/feature-card";
+import { Button } from "@vaultlier/ui/button";
+import { FeatureCard } from "@vaultlier/ui/feature-card";
 import { CodeWindow } from "./components/code-window";
 import { SiteFooter } from "./components/site-footer";
 import { SiteHeader } from "./components/site-header";

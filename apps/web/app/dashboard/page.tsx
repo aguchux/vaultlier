@@ -11,8 +11,8 @@ import {
   ShieldCheck,
   Users,
 } from "lucide-react";
-import { prisma } from "@repo/db";
-import { Card } from "@repo/ui/card";
+import { prisma } from "@vaultlier/db";
+import { Card } from "@vaultlier/ui/card";
 import { activityActionFilter } from "../../lib/audit";
 import { requireUser } from "../../lib/tenancy";
 import { planLabel } from "../../lib/plan";

@@ -1,5 +1,5 @@
 {
-  "name": "@repo/db",
+  "name": "@vaultlier/db",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -33,8 +33,8 @@
     "pg": "^8.21.0"
   },
   "devDependencies": {
-    "@repo/eslint-config": "*",
-    "@repo/typescript-config": "*",
+    "@vaultlier/eslint-config": "*",
+    "@vaultlier/typescript-config": "*",
     "@types/node": "^22.15.3",
     "@types/pg": "^8.11.10",
     "dotenv": "^16.4.7",

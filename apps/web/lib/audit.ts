@@ -4,8 +4,8 @@
  * audit entry commits atomically with the change it describes.
  */
 
-import { prisma } from "@repo/db";
-import type { AuditAction, Prisma, PrismaClient } from "@repo/db";
+import { prisma } from "@vaultlier/db";
+import type { AuditAction, Prisma, PrismaClient } from "@vaultlier/db";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 

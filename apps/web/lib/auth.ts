@@ -11,7 +11,7 @@ import NextAuth, { type NextAuthResult } from "next-auth";
 import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import { prisma } from "@repo/db";
+import { prisma } from "@vaultlier/db";
 import { logAudit } from "./audit";
 import {
   sendOrganizationInvitationAcceptedEmail,

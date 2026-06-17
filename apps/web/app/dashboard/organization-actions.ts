@@ -3,8 +3,8 @@
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { prisma } from "@repo/db";
-import type { Role } from "@repo/db";
+import { prisma } from "@vaultlier/db";
+import type { Role } from "@vaultlier/db";
 import { logAudit } from "../../lib/audit";
 import {
   sendOrganizationInvitationEmail,

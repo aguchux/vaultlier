@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { nav } from "../lib/nav";
-import { cn } from "@repo/ui/lib/cn";
+import { cn } from "@vaultlier/ui/lib/cn";
 
 /** Left documentation navigation. Highlights the active route. */
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }): React.JSX.Element {

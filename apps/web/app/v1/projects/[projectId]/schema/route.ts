@@ -10,8 +10,8 @@
  *       behind the portal) return 409.
  */
 
-import { prisma } from "@repo/db";
-import type { KeyType } from "@repo/db";
+import { prisma } from "@vaultlier/db";
+import type { KeyType } from "@vaultlier/db";
 import { apiError, apiJson, authenticate } from "../../../../../lib/api";
 import { logAudit } from "../../../../../lib/audit";
 import {

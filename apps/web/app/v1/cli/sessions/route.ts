@@ -7,7 +7,7 @@
  * verification URL the CLI prints.
  */
 
-import { prisma } from "@repo/db";
+import { prisma } from "@vaultlier/db";
 import { apiError, apiJson, newRequestId } from "../../../../lib/api";
 import {
   CLI_POLL_INTERVAL_SECONDS,

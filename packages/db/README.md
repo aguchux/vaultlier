@@ -1,4 +1,4 @@
-# @repo/db
+# @vaultlier/db
 
 Shared Prisma client and database schema for the Vaultlier backend. Consumed by
 `apps/web` (portal) and any future API service.
@@ -14,15 +14,15 @@ Shared Prisma client and database schema for the Vaultlier backend. Consumed by
 2. Generate the client and run migrations:
 
    ```bash
-   npm run db:generate --workspace=@repo/db
-   npm run db:migrate  --workspace=@repo/db   # creates + applies a dev migration
-   npm run db:seed     --workspace=@repo/db   # optional demo data
+   npm run db:generate --workspace=@vaultlier/db
+   npm run db:migrate  --workspace=@vaultlier/db   # creates + applies a dev migration
+   npm run db:seed     --workspace=@vaultlier/db   # optional demo data
    ```
 
 ## Usage
 
 ```ts
-import { prisma } from "@repo/db";
+import { prisma } from "@vaultlier/db";
 
 const projects = await prisma.project.findMany();
 ```

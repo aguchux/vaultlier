@@ -10,7 +10,7 @@ const { findUnique, put, get, test } = vi.hoisted(() => ({
 }));
 
 // Mock the DB so getExternalAdapter reads a config we control.
-vi.mock("@repo/db", () => ({
+vi.mock("@vaultlier/db", () => ({
   prisma: { storageAdapterConfig: { findUnique } },
 }));
 

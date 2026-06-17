@@ -1,4 +1,4 @@
-import type { Plan } from "@repo/db";
+import type { Plan } from "@vaultlier/db";
 
 /**
  * Human-readable plan label. Every organization is on Premium today, so the

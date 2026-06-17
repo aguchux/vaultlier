@@ -12,8 +12,8 @@
  * fall back to the DB row on miss/outage.
  */
 
-import { prisma } from "@repo/db";
-import type { Project, StorageAdapterConfig } from "@repo/db";
+import { prisma } from "@vaultlier/db";
+import type { Project, StorageAdapterConfig } from "@vaultlier/db";
 import { decryptSecret } from "../vault-crypto";
 import type {
   AdapterConfig,

@@ -71,8 +71,8 @@
     "access": "public"
   },
   "devDependencies": {
-    "@repo/eslint-config": "*",
-    "@repo/typescript-config": "*",
+    "@vaultlier/eslint-config": "*",
+    "@vaultlier/typescript-config": "*",
     "@types/node": "^22.15.3",
     "@vitest/coverage-v8": "^3.2.6",
     "eslint": "^9.39.1",

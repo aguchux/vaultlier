@@ -10,7 +10,7 @@
  */
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@repo/db";
+import { prisma } from "@vaultlier/db";
 import { logAudit } from "../../../lib/audit";
 import {
   cliTokenExpiry,

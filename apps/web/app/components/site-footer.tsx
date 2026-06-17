@@ -1,4 +1,4 @@
-import { Logo } from "@repo/ui/logo";
+import { Logo } from "@vaultlier/ui/logo";
 import { DOCS_URL, GITHUB_URL, NPM_URL } from "../../lib/links";
 
 const LINKS = [

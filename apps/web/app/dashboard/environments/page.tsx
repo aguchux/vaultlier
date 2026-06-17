@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { Folder } from "lucide-react";
-import { prisma } from "@repo/db";
-import { BackButton } from "@repo/ui/back-button";
-import { Card } from "@repo/ui/card";
+import { prisma } from "@vaultlier/db";
+import { BackButton } from "@vaultlier/ui/back-button";
+import { Card } from "@vaultlier/ui/card";
 import { environmentDeletionBlockers } from "../../../lib/resource-policy";
 import { canManageProject, requireUser } from "../../../lib/tenancy";
 import {

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Building2, Plus, X } from "lucide-react";
-import { cn } from "@repo/ui/lib/cn";
+import { cn } from "@vaultlier/ui/lib/cn";
 
 interface DialogProps {
   action: (formData: FormData) => Promise<void>;

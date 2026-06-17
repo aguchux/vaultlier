@@ -17,7 +17,7 @@
     "test": "turbo run test"
   },
   "devDependencies": {
-    "@repo/eslint-config": "*",
+    "@vaultlier/eslint-config": "*",
     "eslint": "^9.39.1",
     "prettier": "^3.7.4",
     "turbo": "^2.9.17",

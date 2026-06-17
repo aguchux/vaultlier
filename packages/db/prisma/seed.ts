@@ -2,7 +2,7 @@
  * Development seed. Creates a demo organization, user, project, environments,
  * and a couple of key definitions. Idempotent via upserts.
  *
- * Run: npm run db:seed --workspace=@repo/db
+ * Run: npm run db:seed --workspace=@vaultlier/db
  */
 
 import { fileURLToPath } from "node:url";

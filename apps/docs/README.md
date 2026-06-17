@@ -1,7 +1,7 @@
 # docs.vaultlier.com
 
 The Vaultlier documentation site. Next.js (App Router) + Tailwind v4, sharing
-the `@repo/ui` design tokens with the marketing site and portal.
+the `@vaultlier/ui` design tokens with the marketing site and portal.
 
 ## Develop
 

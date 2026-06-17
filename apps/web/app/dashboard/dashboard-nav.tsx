@@ -10,7 +10,7 @@ import {
   ScrollText,
   Settings,
 } from "lucide-react";
-import { cn } from "@repo/ui/lib/cn";
+import { cn } from "@vaultlier/ui/lib/cn";
 
 const items = [
   { label: "Overview", href: "/dashboard/overview", icon: LayoutDashboard },

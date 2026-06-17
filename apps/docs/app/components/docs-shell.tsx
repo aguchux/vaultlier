@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Menu, Search, X } from "lucide-react";
-import { Logo } from "@repo/ui/logo";
-import { ThemeToggle } from "@repo/ui/theme-toggle";
+import { Logo } from "@vaultlier/ui/logo";
+import { ThemeToggle } from "@vaultlier/ui/theme-toggle";
 import { Sidebar } from "./sidebar";
 
 const TOP_NAV = [

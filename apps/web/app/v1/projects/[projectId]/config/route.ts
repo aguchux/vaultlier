@@ -6,7 +6,7 @@
  * exists only in the response body.
  */
 
-import { prisma } from "@repo/db";
+import { prisma } from "@vaultlier/db";
 import { apiError, apiJson, authenticate } from "../../../../../lib/api";
 import { logAudit } from "../../../../../lib/audit";
 import { readExternal } from "../../../../../lib/storage";

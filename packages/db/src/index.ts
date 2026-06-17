@@ -1,5 +1,5 @@
 /**
- * @repo/db — shared Prisma client for the Vaultlier backend.
+ * @vaultlier/db — shared Prisma client for the Vaultlier backend.
  *
  * Exposes a single `prisma` instance. A global singleton is reused across
  * hot reloads (Next.js dev) and warm serverless invocations to avoid

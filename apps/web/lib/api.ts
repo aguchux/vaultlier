@@ -9,8 +9,8 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
-import { prisma } from "@repo/db";
-import type { ApiKey, Project, Role } from "@repo/db";
+import { prisma } from "@vaultlier/db";
+import type { ApiKey, Project, Role } from "@vaultlier/db";
 
 const API_KEY_PATTERN = /^vlt_[A-Za-z0-9_]{8,}$/;
 const ROLE_RANK: Record<Role, number> = {

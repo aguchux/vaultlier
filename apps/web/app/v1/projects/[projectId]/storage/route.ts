@@ -15,8 +15,8 @@
  * dev`) and any API client manage storage the same way the dashboard does.
  */
 
-import { prisma } from "@repo/db";
-import type { StorageAdapterType } from "@repo/db";
+import { prisma } from "@vaultlier/db";
+import type { StorageAdapterType } from "@vaultlier/db";
 import { apiError, apiJson, authenticate } from "../../../../../lib/api";
 import { logAudit } from "../../../../../lib/audit";
 import { buildAdapter } from "../../../../../lib/storage";

@@ -13,8 +13,8 @@
  */
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@repo/db";
-import type { KeyType } from "@repo/db";
+import { prisma } from "@vaultlier/db";
+import type { KeyType } from "@vaultlier/db";
 import { logAudit } from "../../../../lib/audit";
 import { encryptSecret, isVaultConfigured } from "../../../../lib/vault-crypto";
 import { removeSealed, writeSealed } from "../../../../lib/storage";

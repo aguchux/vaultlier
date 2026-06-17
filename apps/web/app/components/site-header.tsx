@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { Button } from "@repo/ui/button";
-import { Logo } from "@repo/ui/logo";
-import { ThemeToggle } from "@repo/ui/theme-toggle";
+import { Button } from "@vaultlier/ui/button";
+import { Logo } from "@vaultlier/ui/logo";
+import { ThemeToggle } from "@vaultlier/ui/theme-toggle";
 import { auth, signOut } from "../../lib/auth";
 import { DOCS_URL } from "../../lib/links";
 

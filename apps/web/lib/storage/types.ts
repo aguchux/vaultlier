@@ -10,7 +10,7 @@
  * encryption or access-control story.
  */
 
-import type { StorageAdapterType } from "@repo/db";
+import type { StorageAdapterType } from "@vaultlier/db";
 
 /** Opaque encrypted payload. Byte fields use Uint8Array for Prisma `Bytes`. */
 export interface SealedBlob {

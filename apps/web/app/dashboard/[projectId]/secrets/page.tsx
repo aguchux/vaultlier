@@ -1,5 +1,5 @@
-import { prisma } from "@repo/db";
-import { BackButton } from "@repo/ui/back-button";
+import { prisma } from "@vaultlier/db";
+import { BackButton } from "@vaultlier/ui/back-button";
 import { readExternal } from "../../../../lib/storage";
 import { decryptSecret, isVaultConfigured } from "../../../../lib/vault-crypto";
 import { toWireType } from "../../../../lib/vault-wire";

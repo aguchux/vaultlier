@@ -54,8 +54,8 @@ Shared internal (unpublished) packages support the above:
 
 ```txt
 packages/ui                → shared React components used by web + docs
-packages/eslint-config     → shared ESLint config (@repo/eslint-config)
-packages/typescript-config → shared tsconfig presets (@repo/typescript-config)
+packages/eslint-config     → shared ESLint config (@vaultlier/eslint-config)
+packages/typescript-config → shared tsconfig presets (@vaultlier/typescript-config)
 ```
 
 > The backend vault API is a future surface (see Release Plan). For v0.1 it may live in `apps/web` route handlers or a dedicated package/service added later; do not assume a standalone `services/` tree exists yet.
@@ -101,10 +101,10 @@ This is the **current** structure. Build new product code into this layout; do n
 │
 ├── packages/
 │   ├── vaultlier/              # the published `vaultlier` npm library (CLI, runtime SDK, type gen)
-│   ├── db/                     # @repo/db — Prisma schema + shared client (PostgreSQL)
-│   ├── ui/                     # shared React components (@repo/ui)
-│   ├── eslint-config/          # shared ESLint config (@repo/eslint-config)
-│   └── typescript-config/      # shared tsconfig presets (@repo/typescript-config)
+│   ├── db/                     # @vaultlier/db — Prisma schema + shared client (PostgreSQL)
+│   ├── ui/                     # shared React components (@vaultlier/ui)
+│   ├── eslint-config/          # shared ESLint config (@vaultlier/eslint-config)
+│   └── typescript-config/      # shared tsconfig presets (@vaultlier/typescript-config)
 │
 ├── turbo.json                  # Turborepo task graph
 ├── package.json                # npm workspaces root
@@ -149,7 +149,7 @@ The repo is currently a fresh `create-turbo` scaffold. To reach the v0.1 surface
 1. **`apps/web`** — build out the users-facing site and portal pages (see Portal Agent page list). This is the source of truth UI.
 2. **`apps/docs`** — populate with the documentation set (see Documentation Agent).
 3. **`packages/vaultlier`** — create the published library: runtime SDK first, then CLI, then type generation.
-4. Keep `@repo/ui`, `@repo/eslint-config`, `@repo/typescript-config` as the shared foundation for both apps.
+4. Keep `@vaultlier/ui`, `@vaultlier/eslint-config`, `@vaultlier/typescript-config` as the shared foundation for both apps.
 
 ---
 
@@ -326,7 +326,7 @@ Supported initial type mapping:
 
 ### 5. Portal Agent
 
-Responsible for `vaultlier.com` — the users-facing site and portal in `apps/web` (Next.js, port 3000). Shares UI primitives via `@repo/ui`.
+Responsible for `vaultlier.com` — the users-facing site and portal in `apps/web` (Next.js, port 3000). Shares UI primitives via `@vaultlier/ui`.
 
 Portal responsibilities:
 
@@ -372,11 +372,11 @@ Recommended portal pages:
 
 Responsible for the API consumed by CLI, portal, and runtime SDK.
 
-Data layer: **`@repo/db`** (`packages/db`) — Prisma + PostgreSQL. Import the
-shared `prisma` client from `@repo/db`; never instantiate `PrismaClient`
+Data layer: **`@vaultlier/db`** (`packages/db`) — Prisma + PostgreSQL. Import the
+shared `prisma` client from `@vaultlier/db`; never instantiate `PrismaClient`
 directly. The schema lives in `packages/db/prisma/schema.prisma`.
 
-Core resources (Prisma models in `@repo/db`):
+Core resources (Prisma models in `@vaultlier/db`):
 
 ```txt
 User              organizations → Organization

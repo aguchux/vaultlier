@@ -1,4 +1,4 @@
-import type { Role } from "@repo/db";
+import type { Role } from "@vaultlier/db";
 
 export function canManageProject(role: Role): boolean {
   return role === "OWNER" || role === "ADMIN";

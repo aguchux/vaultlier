@@ -9,7 +9,7 @@
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { prisma } from "@repo/db";
+import { prisma } from "@vaultlier/db";
 import { generateApiKey, hashApiKey } from "../../lib/api";
 import { logAudit } from "../../lib/audit";
 import {

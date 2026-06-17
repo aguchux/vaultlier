@@ -14,8 +14,8 @@
  */
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@repo/db";
-import type { StorageAdapterType } from "@repo/db";
+import { prisma } from "@vaultlier/db";
+import type { StorageAdapterType } from "@vaultlier/db";
 import { logAudit } from "../../../../lib/audit";
 import { buildAdapter } from "../../../../lib/storage";
 import type {

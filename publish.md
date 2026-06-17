@@ -87,7 +87,7 @@ published from public GitHub repositories.
 
 ---
 
-## Database migrations (`@repo/db`)
+## Database migrations (`@vaultlier/db`)
 
 Migrations are applied by `.github/workflows/db-deploy.yml`, which runs
 `prisma migrate deploy` (apply-only — never creates or resets). It triggers on
@@ -102,7 +102,7 @@ pushes to `main` that touch `packages/db/prisma/**`, and via manual dispatch.
 
    ```powershell
    # set DATABASE_URL in packages/db/.env first
-   npm run db:migrate --workspace=@repo/db   # creates packages/db/prisma/migrations/*
+   npm run db:migrate --workspace=@vaultlier/db   # creates packages/db/prisma/migrations/*
    git add packages/db/prisma/migrations
    git commit -m "db: <migration name>"
    git push   # main push triggers db-deploy.yml -> migrate deploy

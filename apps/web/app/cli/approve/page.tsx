@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Logo } from "@repo/ui/logo";
-import { Card } from "@repo/ui/card";
+import { Logo } from "@vaultlier/ui/logo";
+import { Card } from "@vaultlier/ui/card";
 import { auth } from "../../../lib/auth";
 import { approveCliLogin, denyCliLogin } from "./actions";
 import { ApproveForm } from "./approve-form";

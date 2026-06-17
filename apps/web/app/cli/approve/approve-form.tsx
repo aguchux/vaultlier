@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { Check, Terminal, X } from "lucide-react";
-import { Button } from "@repo/ui/button";
+import { Button } from "@vaultlier/ui/button";
 import type { ApprovalState } from "./actions";
 
 type Action = (

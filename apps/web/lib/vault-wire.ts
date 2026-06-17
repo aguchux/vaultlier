@@ -4,7 +4,7 @@
  * and the schema document exchanged by `vaultlier pull/push/diff`.
  */
 
-import type { Environment, Key, KeyType, Project } from "@repo/db";
+import type { Environment, Key, KeyType, Project } from "@vaultlier/db";
 
 export type WireKeyType = "string" | "boolean" | "number" | "json";
 

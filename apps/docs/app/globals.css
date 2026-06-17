@@ -1,8 +1,8 @@
 @import "tailwindcss";
-@import "@repo/ui/theme.css";
+@import "@vaultlier/ui/theme.css";
 
 /* Scan shared UI package sources so its Tailwind classes are generated.
-   The `dark` variant is declared once in @repo/ui/theme.css, imported above. */
+   The `dark` variant is declared once in @vaultlier/ui/theme.css, imported above. */
 @source "../../../packages/ui/src/**/*.{ts,tsx}";
 
 html {

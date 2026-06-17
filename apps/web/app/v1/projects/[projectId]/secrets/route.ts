@@ -8,7 +8,7 @@
  * echoed back; the response only lists the new version numbers.
  */
 
-import { prisma } from "@repo/db";
+import { prisma } from "@vaultlier/db";
 import { apiError, apiJson, authenticate } from "../../../../../lib/api";
 import { logAudit } from "../../../../../lib/audit";
 import { writeSealed } from "../../../../../lib/storage";

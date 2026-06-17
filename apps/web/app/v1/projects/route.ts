@@ -9,7 +9,7 @@
  */
 
 import { randomBytes } from "node:crypto";
-import { prisma } from "@repo/db";
+import { prisma } from "@vaultlier/db";
 import { apiError, apiJson, clientIp, newRequestId } from "../../../lib/api";
 import { logAudit } from "../../../lib/audit";
 import { authenticateCliToken } from "../../../lib/cli-auth";

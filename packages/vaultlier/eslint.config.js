@@ -1,4 +1,4 @@
-import { config as base } from "@repo/eslint-config/base";
+import { config as base } from "@vaultlier/eslint-config/base";
 import tseslint from "typescript-eslint";
 
 /**

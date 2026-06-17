@@ -12,7 +12,7 @@
  * session the moment it is handed back.
  */
 
-import { prisma } from "@repo/db";
+import { prisma } from "@vaultlier/db";
 import { apiError, apiJson, newRequestId } from "../../../../../lib/api";
 
 export async function GET(

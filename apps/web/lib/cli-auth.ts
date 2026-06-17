@@ -15,8 +15,8 @@
  */
 
 import { createHash, randomBytes, randomInt } from "node:crypto";
-import { prisma } from "@repo/db";
-import type { CliToken, User } from "@repo/db";
+import { prisma } from "@vaultlier/db";
+import type { CliToken, User } from "@vaultlier/db";
 
 /** Device-login session lifetime and how often the CLI should poll. */
 export const CLI_SESSION_TTL_SECONDS = 15 * 60;
