@@ -25,6 +25,7 @@ const toc = [
   { id: "scan", title: "scan" },
   { id: "push-pull-diff", title: "push / pull / diff" },
   { id: "set", title: "set" },
+  { id: "update", title: "update" },
   { id: "dev", title: "dev" },
   { id: "whoami", title: "whoami" },
   { id: "generate-key", title: "generate-key" },
@@ -207,6 +208,40 @@ vaultlier set STRIPE_SECRET=sk_live_... FEATURE_NEW_FLOW=true -e prod`}</CodeBlo
       </P>
       <CodeBlock label="Terminal">{`vaultlier set DATABASE_URL=postgres://wip-db --env=working --yes`}</CodeBlock>
 
+      <H2 id="update">update</H2>
+      <P>
+        Reviews the schema variables for an environment and drops the ones you
+        no longer want. Only key <strong>names</strong> and scopes are read —
+        secret values are never touched. On a terminal it opens an interactive
+        checklist; pass <InlineCode>--env</InlineCode> to skip the environment
+        picker.
+      </P>
+      <CodeBlock label="Terminal">{`vaultlier update --env=prod   # review prod's schema vars
+vaultlier update              # pick the environment from a list`}</CodeBlock>
+      <P>
+        In the checklist, move with the arrow keys (or{" "}
+        <InlineCode>j</InlineCode>/<InlineCode>k</InlineCode>), toggle a var with{" "}
+        <strong>Space</strong>, and apply with <strong>Enter</strong>. Everything
+        starts checked (kept); <strong>unchecked vars are dropped</strong>. A var
+        scoped to several environments is narrowed — only the selected
+        environment is removed from its scopes — while a var scoped to a single
+        environment (or reviewed under <InlineCode>--env=all</InlineCode>) leaves
+        the schema entirely.
+      </P>
+      <P>
+        For CI, drop keys non-interactively with{" "}
+        <InlineCode>--drop</InlineCode> and confirm with{" "}
+        <InlineCode>--yes</InlineCode>:
+      </P>
+      <CodeBlock label="Terminal">{`vaultlier update --env=prod --drop=OLD_FLAG,LEGACY_URL --yes`}</CodeBlock>
+      <Callout tone="info" title="Drops apply locally and remotely">
+        After updating <InlineCode>vaultlier.json</InlineCode> and the generated
+        client, <InlineCode>update</InlineCode> pushes the reduced schema to the
+        portal so the remote matches. Without an API key it drops locally only
+        and reminds you to run <InlineCode>vaultlier push</InlineCode> to
+        propagate the change.
+      </Callout>
+
       <H2 id="dev">dev</H2>
       <P>
         Starts a small management UI for the <strong>one project</strong> bound
@@ -279,12 +314,13 @@ KEY=$(vaultlier generate-key 2>/dev/null)`}</CodeBlock>
       <Table
         head={["Short", "Long", "Aliases", "Used by"]}
         rows={[
-          ["-e", <InlineCode key="e">--env</InlineCode>, <InlineCode key="ea">--environment</InlineCode>, "pull, push, diff, set"],
+          ["-e", <InlineCode key="e">--env</InlineCode>, <InlineCode key="ea">--environment</InlineCode>, "pull, push, diff, set, update"],
           ["-k", <InlineCode key="k">--api-key</InlineCode>, <InlineCode key="ka">--apiKey</InlineCode>, "all portal commands"],
           ["", <InlineCode key="u">--api-url</InlineCode>, <InlineCode key="ua">--apiUrl</InlineCode>, "all portal commands"],
-          ["", <InlineCode key="p">--project-id</InlineCode>, <InlineCode key="pa">--projectId</InlineCode>, "init"],
+          ["", <InlineCode key="pi">--project-id</InlineCode>, <InlineCode key="pa">--projectId</InlineCode>, "init"],
           ["-p", <InlineCode key="po">--port</InlineCode>, "", "dev"],
           ["-o", <InlineCode key="o">--output</InlineCode>, "", "--generate, --generate-env"],
+          ["", <InlineCode key="d">--drop</InlineCode>, "", "update"],
           ["-y", <InlineCode key="y">--yes</InlineCode>, "", "prompts"],
           ["-f", <InlineCode key="f">--force</InlineCode>, "", "init, generated .env"],
           ["-h", <InlineCode key="h">--help</InlineCode>, "", "everywhere"],
