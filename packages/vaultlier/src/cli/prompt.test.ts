@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { describe, expect, it } from "vitest";
-import { selectFromList } from "./prompt.js";
+import { selectFromList, selectManyFromList } from "./prompt.js";
 import { createStyler } from "./ui.js";
 
 const ESC = String.fromCharCode(27);
@@ -109,5 +109,63 @@ describe("selectFromList", () => {
     const { stdout } = await pick(["\r"]);
     expect(stdout.read()).toContain("prj_1");
     expect(stdout.read()).toContain("prj_2");
+  });
+});
+
+const CHECK_OPTIONS = [
+  { label: "DATABASE_URL" },
+  { label: "API_KEY" },
+  { label: "STRIPE_KEY", checked: false },
+];
+
+async function check(keys: string[]) {
+  const stdin = fakeTty();
+  const stdout = output();
+  const selection = selectManyFromList({
+    title: "Select vars to keep",
+    options: CHECK_OPTIONS,
+    stdin: stdin as never,
+    stdout,
+    style,
+  });
+  await Promise.resolve();
+  for (const key of keys) stdin.emit("data", Buffer.from(key));
+  return { indices: await selection, stdin, stdout };
+}
+
+describe("selectManyFromList", () => {
+  it("returns undefined on non-TTY stdin so callers can fall back", async () => {
+    const indices = await selectManyFromList({
+      title: "Select",
+      options: CHECK_OPTIONS,
+      stdin: { isTTY: false } as never,
+      stdout: output(),
+      style,
+    });
+    expect(indices).toBeUndefined();
+  });
+
+  it("starts with options checked unless checked:false, confirms with enter", async () => {
+    // No toggles: defaults (0 and 1 checked, 2 unchecked) are returned.
+    const { indices } = await check(["\r"]);
+    expect(indices).toEqual([0, 1]);
+  });
+
+  it("toggles the highlighted option with space", async () => {
+    // Uncheck index 0, check index 2.
+    const { indices } = await check([" ", `${ESC}[B`, `${ESC}[B`, " ", "\r"]);
+    expect(indices).toEqual([1, 2]);
+  });
+
+  it("renders checkbox markers", async () => {
+    const { stdout } = await check(["\r"]);
+    expect(stdout.read()).toContain("[x] DATABASE_URL");
+    expect(stdout.read()).toContain("[ ] STRIPE_KEY");
+  });
+
+  it("cancels on esc, restoring raw mode", async () => {
+    const { indices, stdin } = await check([ESC]);
+    expect(indices).toBeUndefined();
+    expect(stdin.rawMode).toBe(false);
   });
 });

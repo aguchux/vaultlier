@@ -58,7 +58,7 @@ import {
   writeAccountCredentials,
 } from "./login.js";
 import type { AccountCredentials } from "./login.js";
-import { selectFromList } from "./prompt.js";
+import { selectFromList, selectManyFromList } from "./prompt.js";
 import {
   discoverEnvMetadata,
   generateEnvFile,
@@ -76,6 +76,7 @@ export type CommandName =
   | "pull"
   | "push"
   | "diff"
+  | "update"
   | "set"
   | "whoami"
   | "dev"
@@ -138,6 +139,7 @@ type Installer = (params: {
 const VALUE_FLAGS = new Set([
   "api-key",
   "api-url",
+  "drop",
   "env",
   "environments",
   "host",
@@ -267,6 +269,7 @@ const HELP = `vaultlier - sealed configuration vault CLI
 
 Usage:
   vaultlier <command> [options]
+  vaultlier update --env=<name|all>
   vaultlier set KEY=VALUE [KEY=VALUE ...] --env=<name>
   vaultlier config <set|get|verify> [project=<id>] [apiKey=<key>]
   vaultlier generate-key            (also: vaultlier generate key)
@@ -282,6 +285,7 @@ Commands:
   pull                   Pull portal schema metadata and regenerate the typed client
   push                   Push local schema additions to the portal
   diff                   Show schema differences between local and portal
+  update                 Review schema vars for an environment and drop stale ones
   set KEY=VALUE ...      Write secret values to one environment (requires --env;
                          creates the environment in the portal when missing)
   whoami                 Print the authenticated project context
@@ -294,6 +298,7 @@ Commands:
 Options:
   -e, --env=<name|all>       Target environment (alias: --environment)
       --environments=<a,b>   Initial environment list for init
+      --drop=<KEY,...>       Non-interactive update: drop these schema keys
   -k, --api-key=<key>        API key; cached locally by init, never in generated files
       --api-url=<url>        Portal API base URL (default ${API_URL_ENV} or hosted API)
       --project-id=<id>      Project ID used by init
@@ -310,6 +315,72 @@ Options:
   -v, --version              Show the vaultlier CLI version
   -h, --help                 Show this help
 `;
+
+const COMMANDS = [
+  "init",
+  "login",
+  "logout",
+  "config",
+  "pull",
+  "push",
+  "diff",
+  "update",
+  "set",
+  "whoami",
+  "dev",
+  "scan",
+  "generate-key",
+] as const satisfies readonly CommandName[];
+
+const COMMAND_HELP: Partial<Record<CommandName, string>> = {
+  update: `vaultlier update - review schema vars and drop stale metadata
+
+Usage:
+  vaultlier update --env=<name|all>
+  vaultlier update -e <name>
+
+Options:
+  -e, --env=<name|all>   Environment to review. Omit on a TTY to pick from a list.
+      --drop=<KEY,...>   Drop listed keys without opening the interactive checklist.
+  -y, --yes              Confirm the non-interactive drop without prompting.
+  -h, --help             Show this help.
+
+Interactive mode:
+  Use arrow up/down or j/k to move, Space to check vars to keep, and Enter
+  to apply. Unchecked vars are dropped from the selected environment metadata.
+`,
+  pull: `vaultlier pull - sync schema metadata from the portal
+
+Usage:
+  vaultlier pull [--env=<name|all>] [--generate-env]
+
+Options:
+  -e, --env=<name|all>   Target environment filter.
+      --generate-env     Write a key-only .env file after pull.
+  -o, --output=<path>    Target path for generated key-only .env.
+  -h, --help             Show this help.
+`,
+  push: `vaultlier push - push local schema additions to the portal
+
+Usage:
+  vaultlier push [--env=<name|all>]
+
+Options:
+  -e, --env=<name|all>   Validate a target environment before pushing.
+  -k, --api-key=<key>    Project API key.
+  -h, --help             Show this help.
+`,
+  diff: `vaultlier diff - compare local and portal schema metadata
+
+Usage:
+  vaultlier diff [--env=<name|all>]
+
+Options:
+  -e, --env=<name|all>   Validate a target environment before diffing.
+  -k, --api-key=<key>    Project API key.
+  -h, --help             Show this help.
+`,
+};
 
 /** Run the CLI. Returns an exit code. */
 export async function run(
@@ -353,7 +424,12 @@ export async function run(
     return ExitCode.Success;
   }
 
-  if (!command || flags.help) {
+  if (flags.help === true) {
+    writeHelp(command, positionals, ctx);
+    return ExitCode.Success;
+  }
+
+  if (!command) {
     ctx.stdout.write(HELP);
     return ExitCode.Success;
   }
@@ -373,6 +449,8 @@ export async function run(
       return portalCommand("push", flags, ctx);
     case "diff":
       return portalCommand("diff", flags, ctx);
+    case "update":
+      return updateCommand(flags, ctx);
     case "set":
       return setCommand(flags, positionals, ctx);
     case "whoami":
@@ -383,9 +461,70 @@ export async function run(
       return scanCommand(flags, ctx);
     default:
       ctx.ui.error(`Unknown command: ${command}`);
+      writeCommandSuggestions(command, ctx.stderr);
       ctx.stderr.write(`\n${HELP}`);
       return ExitCode.GenericError;
   }
+}
+
+function writeHelp(
+  command: string | undefined,
+  positionals: string[],
+  ctx: CliContext,
+): void {
+  if (!command) {
+    ctx.stdout.write(HELP);
+    return;
+  }
+
+  const normalized =
+    command === "generate" && positionals[0] === "key" ? "generate-key" : command;
+  if (isCommandName(normalized)) {
+    ctx.stdout.write(COMMAND_HELP[normalized] ?? HELP);
+    return;
+  }
+
+  ctx.stdout.write(`vaultlier: unknown command fragment "${command}"\n`);
+  writeCommandSuggestions(command, ctx.stdout);
+  ctx.stdout.write(`\n${HELP}`);
+}
+
+function isCommandName(command: string): command is CommandName {
+  return (COMMANDS as readonly string[]).includes(command);
+}
+
+function writeCommandSuggestions(
+  fragment: string,
+  stream: Pick<NodeJS.WritableStream, "write">,
+): void {
+  const suggestions = suggestCommands(fragment);
+  if (suggestions.length === 0) return;
+  stream.write(
+    `Did you mean: ${suggestions.map((name) => `vaultlier ${name}`).join(", ")}?\n`,
+  );
+}
+
+function suggestCommands(fragment: string): CommandName[] {
+  const lower = fragment.toLowerCase();
+  return COMMANDS.filter(
+    (name) => name.startsWith(lower) || levenshtein(lower, name) <= 2,
+  );
+}
+
+function levenshtein(a: string, b: string): number {
+  const previous = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 0; i < a.length; i += 1) {
+    const current = [i + 1];
+    for (let j = 0; j < b.length; j += 1) {
+      current[j + 1] = Math.min(
+        current[j]! + 1,
+        previous[j + 1]! + 1,
+        previous[j]! + (a[i] === b[j] ? 0 : 1),
+      );
+    }
+    previous.splice(0, previous.length, ...current);
+  }
+  return previous[b.length]!;
 }
 
 async function initCommand(
@@ -1010,6 +1149,234 @@ async function generateCommand(
   if (envResult !== ExitCode.Success) return envResult;
 
   return writeKeyOnlyEnvFile(config, flags, ctx);
+}
+
+async function updateCommand(
+  flags: Record<string, string | boolean>,
+  ctx: CliContext,
+): Promise<ExitCode> {
+  const configPath = await findConfigPath(ctx.cwd);
+  const config = await readLocalConfig(ctx);
+  if (!config || !configPath) return ExitCode.SchemaInvalid;
+
+  const environment = await resolveUpdateEnvironment(flags, config, ctx);
+  if (!environment) return ExitCode.SchemaInvalid;
+
+  const envResult = validateEnvFlag({ ...flags, env: environment }, config, ctx);
+  if (envResult !== ExitCode.Success) return envResult;
+
+  const entries = Object.entries(config.keys)
+    .filter(([, schema]) =>
+      environment === "all" ? true : keyAppliesToEnvironment(schema, environment),
+    )
+    .sort(([a], [b]) => a.localeCompare(b));
+
+  if (entries.length === 0) {
+    ctx.ui.info(`no schema vars scoped to "${environment}"`);
+    return ExitCode.Success;
+  }
+
+  const dropFromFlag = parseListFlag(flags.drop);
+  let dropKeys: string[];
+  if (dropFromFlag) {
+    const eligible = new Set(entries.map(([name]) => name));
+    const unknown = dropFromFlag.filter((name) => !eligible.has(name));
+    if (unknown.length > 0) {
+      ctx.ui.error(
+        `vaultlier update: cannot drop keys not scoped to "${environment}": ${unknown.join(", ")}`,
+      );
+      return ExitCode.SchemaInvalid;
+    }
+    let shouldDrop = flags.yes === true;
+    if (!shouldDrop) {
+      shouldDrop = await confirm({
+        prompt: `Drop ${dropFromFlag.length} schema var${dropFromFlag.length === 1 ? "" : "s"} from "${environment}"? Values are not read. [y/N] `,
+        defaultValue: false,
+        ctx,
+      });
+    }
+    if (!shouldDrop) {
+      ctx.ui.warn("skipped schema metadata update");
+      return ExitCode.Success;
+    }
+    dropKeys = dropFromFlag;
+  } else {
+    const selected = await selectManyFromList({
+      title: `Select schema vars to keep for "${environment}"`,
+      options: entries.map(([name, schema]) => ({
+        label: name,
+        hint: `${schema.type}; scopes: ${(schema.scopes ?? ["all"]).join(", ")}`,
+        checked: true,
+      })),
+      stdin: ctx.stdin,
+      stdout: ctx.stdout,
+      style: ctx.ui.style,
+    });
+    if (selected === undefined) {
+      ctx.ui.error(
+        "vaultlier update: interactive selection requires a TTY. Use --drop=<KEY,...> for non-interactive updates.",
+      );
+      return ExitCode.GenericError;
+    }
+    const keep = new Set(selected.map((index) => entries[index]![0]));
+    dropKeys = entries
+      .map(([name]) => name)
+      .filter((name) => !keep.has(name));
+  }
+
+  if (dropKeys.length === 0) {
+    ctx.ui.info("schema metadata unchanged");
+    return ExitCode.Success;
+  }
+
+  const { config: updatedConfig, removed, unscoped } = dropSchemaKeys(
+    config,
+    environment,
+    dropKeys,
+  );
+  const validation = validateConfig(updatedConfig);
+  if (!validation.valid) {
+    ctx.ui.error(`vaultlier update: ${validation.errors.join("; ")}`);
+    return ExitCode.SchemaInvalid;
+  }
+
+  await writeJson(configPath.path, updatedConfig);
+  await writeGeneratedClient(ctx.cwd, updatedConfig);
+
+  for (const key of unscoped) {
+    ctx.stdout.write(`  - ${ctx.ui.style.dim(`${key} from ${environment}`)}\n`);
+  }
+  for (const key of removed) {
+    ctx.stdout.write(`  - ${ctx.ui.style.dim(`${key} from schema`)}\n`);
+  }
+
+  // Propagate the drop to the portal so the remote schema matches local. The
+  // schema PUT adopts the reduced key set; without an API key we update only
+  // the local config and tell the user the remote is untouched.
+  const apiKey = await resolveCliApiKey(flags, ctx);
+  if (apiKey) {
+    if (!looksLikeApiKey(apiKey)) {
+      ctx.ui.error(
+        'vaultlier update: invalid API key format (expected a "vlt_" key)',
+      );
+      return ExitCode.AuthFailed;
+    }
+    const synced = await syncEnvironmentToPortal(
+      updatedConfig,
+      portalOptions(flags, ctx, apiKey),
+      ctx,
+    );
+    if (!synced.ok) return synced.code;
+    // syncEnvironmentToPortal adopts the portal's returned schema on disk. If
+    // the portal's PUT is additive it may re-add the dropped keys; re-assert
+    // the locally-reduced config so the drop always sticks locally, while
+    // keeping the portal's bumped version.
+    const reasserted = { ...updatedConfig, version: synced.config.version };
+    await writeJson(configPath.path, reasserted);
+    await writeGeneratedClient(ctx.cwd, reasserted);
+    ctx.ui.success(
+      `synced schema to the portal - now at v${synced.config.version}`,
+    );
+  } else {
+    ctx.ui.warn(
+      `no API key found - dropped locally only; run vaultlier push to drop remotely`,
+    );
+  }
+
+  ctx.ui.success(
+    `updated schema metadata - dropped ${dropKeys.length} var${dropKeys.length === 1 ? "" : "s"}`,
+  );
+  return ExitCode.Success;
+}
+
+/** True when `schema` applies to `environment` (scopes include it or "all"). */
+function keyAppliesToEnvironment(
+  schema: VaultKeySchema,
+  environment: string,
+): boolean {
+  const scopes = schema.scopes ?? ["all"];
+  return scopes.includes("all") || scopes.includes(environment);
+}
+
+/**
+ * Resolve which environment `update` should review. The `--env` flag wins;
+ * otherwise, on a TTY, offer a single-select list (with an "all" entry).
+ * Returns undefined when no environment can be determined.
+ */
+async function resolveUpdateEnvironment(
+  flags: Record<string, string | boolean>,
+  config: VaultlierConfig,
+  ctx: CliContext,
+): Promise<string | undefined> {
+  const flagged = getEnvFlag(flags);
+  if (flagged) return flagged;
+
+  const stdin = ctx.stdin as NodeJS.ReadableStream & {
+    isTTY?: boolean;
+    setRawMode?: (raw: boolean) => void;
+  };
+  if (stdin.isTTY !== true) {
+    ctx.ui.error(
+      "vaultlier update: pass --env=<name|all> (no TTY for the interactive picker)",
+    );
+    return undefined;
+  }
+
+  const choices = [
+    { label: "all", hint: "every environment" },
+    ...config.environments.map((name) => ({ label: name })),
+  ];
+  const picked = await selectFromList({
+    title: "Select an environment to review",
+    options: choices,
+    stdin,
+    stdout: ctx.stdout,
+    style: ctx.ui.style,
+  });
+  if (picked === undefined) return undefined;
+  return picked === 0 ? "all" : config.environments[picked - 1];
+}
+
+/**
+ * Drop `dropKeys` from `config` for `environment`. For `"all"` (or a key
+ * scoped to a single environment), the key leaves the schema entirely
+ * (`removed`); a key scoped to several environments is merely narrowed by
+ * removing `environment` from its scopes (`unscoped`).
+ */
+function dropSchemaKeys(
+  config: VaultlierConfig,
+  environment: string,
+  dropKeys: string[],
+): { config: VaultlierConfig; removed: string[]; unscoped: string[] } {
+  const drop = new Set(dropKeys);
+  const keys: Record<string, VaultKeySchema> = {};
+  const removed: string[] = [];
+  const unscoped: string[] = [];
+
+  for (const [name, schema] of Object.entries(config.keys)) {
+    if (!drop.has(name)) {
+      keys[name] = schema;
+      continue;
+    }
+
+    // Dropping for every environment, or a key that only declares "all",
+    // removes the key outright. Otherwise narrow the scopes to everything
+    // except the targeted environment; an emptied scope list removes the key.
+    const scopes = schema.scopes ?? ["all"];
+    if (environment === "all" || scopes.includes("all")) {
+      removed.push(name);
+      continue;
+    }
+    const narrowed = scopes.filter((scope) => scope !== environment);
+    if (narrowed.length === 0) {
+      removed.push(name);
+    } else {
+      keys[name] = { ...schema, scopes: narrowed };
+      unscoped.push(name);
+    }
+  }
+
+  return { config: { ...config, keys }, removed, unscoped };
 }
 
 /**

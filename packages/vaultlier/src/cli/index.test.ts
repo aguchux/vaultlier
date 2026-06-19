@@ -1517,4 +1517,203 @@ describe("run", () => {
     expect(code).toBe(ExitCode.Success);
     expect(sawAuth).toBe("Bearer vlt_test_12345678");
   });
+
+  it("update --drop removes a key locally and syncs the reduced schema remotely", async () => {
+    const cwd = await makeTempDir();
+    await writeFile(
+      join(cwd, "vaultlier.json"),
+      JSON.stringify(
+        {
+          projectId: "prj_checkout_api",
+          version: 2,
+          environments: ["dev", "prod"],
+          keys: {
+            DATABASE_URL: { type: "string", scopes: ["all"] },
+            STALE_KEY: { type: "string", scopes: ["all"] },
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    // Portal echoes a bumped version; an additive portal might still return
+    // STALE_KEY, so the local drop must be re-asserted regardless.
+    const portal = fakePortal(() => ({
+      status: 200,
+      body: {
+        projectId: "prj_checkout_api",
+        version: 4,
+        environments: ["dev", "prod"],
+        keys: {
+          DATABASE_URL: { type: "string", scopes: ["all"] },
+          STALE_KEY: { type: "string", scopes: ["all"] },
+        },
+      },
+    }));
+    const stdout = capture();
+    const code = await run(
+      [
+        "update",
+        "--env=all",
+        "--drop=STALE_KEY",
+        "--yes",
+        "--api-key=vlt_test_12345678",
+        "--api-url=https://portal.test",
+      ],
+      { cwd, stdout: stdout.stream, fetch: portal.fetchImpl },
+    );
+
+    expect(code).toBe(ExitCode.Success);
+    expect(stdout.read()).toContain("dropped 1 var");
+    expect(stdout.read()).toContain("synced schema to the portal - now at v4");
+    expect(portal.requests).toHaveLength(1);
+    expect(portal.requests[0]!.method).toBe("PUT");
+    // The reduced schema must not carry the dropped key to the portal.
+    expect(portal.requests[0]!.body).not.toContain("STALE_KEY");
+
+    const config = JSON.parse(
+      await readFile(join(cwd, "vaultlier.json"), "utf8"),
+    ) as { version: number; keys: Record<string, unknown> };
+    expect(config.version).toBe(4);
+    expect(config.keys.DATABASE_URL).toBeDefined();
+    // The local drop sticks even though the additive portal returned it.
+    expect(config.keys.STALE_KEY).toBeUndefined();
+  });
+
+  it("update --drop narrows scopes instead of removing a multi-env key", async () => {
+    const cwd = await makeTempDir();
+    await writeFile(
+      join(cwd, "vaultlier.json"),
+      JSON.stringify(
+        {
+          projectId: "prj_checkout_api",
+          version: 1,
+          environments: ["dev", "prod"],
+          keys: {
+            SHARED_KEY: { type: "string", scopes: ["dev", "prod"] },
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    // No API key: local-only drop, with a warning about the remote.
+    const stdout = capture();
+    const code = await run(["update", "--env=prod", "--drop=SHARED_KEY", "--yes"], {
+      cwd,
+      stdout: stdout.stream,
+    });
+
+    expect(code).toBe(ExitCode.Success);
+    expect(stdout.read()).toContain("dropped locally only");
+
+    const config = JSON.parse(
+      await readFile(join(cwd, "vaultlier.json"), "utf8"),
+    ) as { keys: Record<string, { scopes?: string[] }> };
+    // Still present, but no longer scoped to prod.
+    expect(config.keys.SHARED_KEY!.scopes).toEqual(["dev"]);
+  });
+
+  it("update rejects dropping a key that exists but is out of the env scope", async () => {
+    const cwd = await makeTempDir();
+    await writeFile(
+      join(cwd, "vaultlier.json"),
+      JSON.stringify(
+        {
+          projectId: "prj_checkout_api",
+          version: 1,
+          environments: ["dev", "prod"],
+          keys: {
+            // Scoped to prod so the env has entries; the drop names a dev-only key.
+            PROD_KEY: { type: "string", scopes: ["prod"] },
+            DEV_ONLY: { type: "string", scopes: ["dev"] },
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    const stderr = capture();
+    const code = await run(
+      ["update", "--env=prod", "--drop=DEV_ONLY", "--yes"],
+      { cwd, stderr: stderr.stream },
+    );
+
+    // DEV_ONLY is not scoped to prod, so it is not eligible to drop there.
+    expect(code).toBe(ExitCode.SchemaInvalid);
+    expect(stderr.read()).toContain("cannot drop keys not scoped");
+  });
+
+  it("update reports when no vars are scoped to the chosen environment", async () => {
+    const cwd = await makeTempDir();
+    await writeFile(
+      join(cwd, "vaultlier.json"),
+      JSON.stringify(
+        {
+          projectId: "prj_checkout_api",
+          version: 1,
+          environments: ["dev", "prod"],
+          keys: { DEV_ONLY: { type: "string", scopes: ["dev"] } },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    const stdout = capture();
+    const code = await run(["update", "--env=prod", "--yes"], {
+      cwd,
+      stdout: stdout.stream,
+    });
+    expect(code).toBe(ExitCode.Success);
+    expect(stdout.read()).toContain('no schema vars scoped to "prod"');
+  });
+
+  it("update without --env and without a TTY reports how to proceed", async () => {
+    const cwd = await makeTempDir();
+    await writeFile(
+      join(cwd, "vaultlier.json"),
+      JSON.stringify(
+        {
+          projectId: "prj_checkout_api",
+          version: 1,
+          environments: ["dev"],
+          keys: { DATABASE_URL: { type: "string", scopes: ["all"] } },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    const stderr = capture();
+    const code = await run(["update"], { cwd, stderr: stderr.stream });
+    expect(code).toBe(ExitCode.SchemaInvalid);
+    expect(stderr.read()).toContain("--env=<name|all>");
+  });
+
+  it("command --help prints command-specific usage", async () => {
+    const stdout = capture();
+    const code = await run(["update", "--help"], { stdout: stdout.stream });
+    expect(code).toBe(ExitCode.Success);
+    expect(stdout.read()).toContain("vaultlier update -");
+    expect(stdout.read()).toContain("Interactive mode:");
+    // Top-level help is not dumped for a known command's --help.
+    expect(stdout.read()).not.toContain("sealed configuration vault CLI");
+  });
+
+  it("an unknown command suggests close matches", async () => {
+    const stderr = capture();
+    const code = await run(["updaet"], { stderr: stderr.stream });
+    expect(code).toBe(ExitCode.GenericError);
+    expect(stderr.read()).toContain("Did you mean");
+    expect(stderr.read()).toContain("vaultlier update");
+  });
 });

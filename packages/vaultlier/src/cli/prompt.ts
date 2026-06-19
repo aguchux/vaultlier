@@ -24,6 +24,16 @@ export interface SelectParams {
   initialIndex?: number;
 }
 
+export interface SelectManyParams {
+  title: string;
+  options: Array<{ label: string; hint?: string; checked?: boolean }>;
+  stdin: SelectStdin;
+  stdout: Pick<NodeJS.WritableStream, "write">;
+  style: Styler;
+  /** Initially highlighted index. Defaults to 0. */
+  initialIndex?: number;
+}
+
 const ESC = String.fromCharCode(27);
 const KEY_UP = `${ESC}[A`;
 const KEY_DOWN = `${ESC}[B`;
@@ -82,6 +92,91 @@ export function selectFromList(
       }
       if (input === "\r" || input === "\n" || input === " ") {
         finish(index);
+        return;
+      }
+      if (input === KEY_UP || input === "k") {
+        index = (index - 1 + params.options.length) % params.options.length;
+        stdout.write(renderLines());
+        return;
+      }
+      if (input === KEY_DOWN || input === "j") {
+        index = (index + 1) % params.options.length;
+        stdout.write(renderLines());
+      }
+    };
+
+    stdin.setRawMode?.(true);
+    stdin.resume?.();
+    stdin.on("data", onData);
+  });
+}
+
+/**
+ * Resolves with the checked option indices, or undefined when cancelled or
+ * when the terminal cannot run an interactive menu.
+ */
+export function selectManyFromList(
+  params: SelectManyParams,
+): Promise<number[] | undefined> {
+  const { stdin, stdout, style } = params;
+  if (params.options.length === 0) return Promise.resolve([]);
+  if (stdin.isTTY !== true || typeof stdin.setRawMode !== "function") {
+    return Promise.resolve(undefined);
+  }
+
+  let index = Math.min(
+    Math.max(params.initialIndex ?? 0, 0),
+    params.options.length - 1,
+  );
+  const checked = new Set<number>();
+  params.options.forEach((option, i) => {
+    if (option.checked !== false) checked.add(i);
+  });
+  let rendered = false;
+
+  const renderLines = (): string => {
+    const lines = params.options.map((option, i) => {
+      const pointer = i === index ? style.cyan(">") : " ";
+      const marker = checked.has(i) ? "[x]" : "[ ]";
+      const label = i === index ? style.bold(option.label) : option.label;
+      const hint = option.hint ? ` ${style.dim(option.hint)}` : "";
+      return `${ESC}[2K${pointer} ${marker} ${label}${hint}`;
+    });
+    const reset = rendered ? `${ESC}[${params.options.length}A\r` : "";
+    rendered = true;
+    return `${reset}${lines.join("\n")}\n`;
+  };
+
+  stdout.write(
+    `${params.title} ${style.dim("(arrows or j/k to move, space to toggle, enter to confirm, esc to cancel)")}\n`,
+  );
+  stdout.write(renderLines());
+
+  return new Promise((resolve) => {
+    const finish = (result: number[] | undefined): void => {
+      stdin.off?.("data", onData);
+      stdin.setRawMode?.(false);
+      stdin.pause?.();
+      resolve(result);
+    };
+
+    const onData = (chunk: Buffer | string): void => {
+      const input = chunk.toString("utf8");
+      if (input === CTRL_C || input === ESC) {
+        finish(undefined);
+        return;
+      }
+      if (input === "\r" || input === "\n") {
+        finish([...checked].sort((a, b) => a - b));
+        return;
+      }
+      if (input === " ") {
+        if (checked.has(index)) {
+          checked.delete(index);
+        } else {
+          checked.add(index);
+        }
+        stdout.write(renderLines());
         return;
       }
       if (input === KEY_UP || input === "k") {
