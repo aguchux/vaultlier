@@ -16,10 +16,16 @@ the first publish of `vaultlier`, use one of these bootstrap paths:
 
 ### Option A: Manual first publish
 
+Run from the `vaultlier/` package directory:
+
 ```powershell
 npm login
-npm publish --workspace=vaultlier --access public --otp=<code>
+npm run build
+npm publish
 ```
+
+`publishConfig.access` is already `public`, so `--access public` is not needed.
+If npm prompts for 2FA, append `--otp=<code>`.
 
 ### Option B: One CI publish with a bypass-2FA token
 
@@ -99,7 +105,8 @@ pushes to `main` that touch `packages/db/prisma/**`, and via manual dispatch.
 1. GitHub repo -> Settings -> Environments -> create **`production`**.
    - Add a secret **`DATABASE_URL`** (the production Postgres connection string).
    - Optional: add required reviewers / a wait timer to gate deploys.
-2. Author migrations locally against a dev database, then commit them:
+2. Author migrations locally against a dev database, then commit them
+   (run from the `website/` monorepo root, where `@vaultlier/db` is a workspace):
 
    ```powershell
    # set DATABASE_URL in packages/db/.env first
@@ -115,7 +122,9 @@ The workflow no-ops until at least one migration is committed.
 
 ## Local sanity checks
 
+Run from the `vaultlier/` package directory:
+
 ```powershell
-npm run build --workspace=vaultlier
-npm pack --dry-run --workspace=vaultlier
+npm run build
+npm pack --dry-run
 ```
