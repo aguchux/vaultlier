@@ -13,22 +13,34 @@ npm install vaultlier
 ```bash
 npx vaultlier init
 npx vaultlier pull --env=prod
+npx vaultlier audit
 ```
 
 `init` walks a new developer through the whole setup: it installs the
 dependency if needed, offers a browser login when you have no account
 credentials yet, lets you pick an existing project with the arrow keys (or
 create a new one), and asks for an API key - **press Enter to skip** if you
-don't have one yet. It always writes the metadata-only `vaultlier.json`
+don't have one yet. It always writes the metadata-only `vaultlier.config.json`
 (schema), and **optionally** generates a typed SDK client. When you accept the
 prompt, the client is generated at `lib/vaultlier/vaultlier.ts` by default
 (override with `--client=<path>`); decline (or pass `--no-client`) to wire the
 SDK by hand with `import { createClient } from 'vaultlier'`. The chosen path is
-recorded in `vaultlier.json` (`"client"`), so later commands only regenerate
-the client when you opted in. Existing projects may also use
-`vaultlier.config.json` for schema metadata. Fully non-interactive setup still
+recorded in `vaultlier.config.json` (`"client"`), so later commands only
+regenerate the client when you opted in. Existing projects that still have
+`vaultlier.json` continue to work as legacy config files. Fully non-interactive setup still
 works: `npx vaultlier init --project-id=<id> --api-key=<key>`
 (generates the client unless `--no-client` is passed).
+
+During init, Vaultlier also ensures `.env` contains a self-hosted portal master
+key placeholder and instructions:
+
+```dotenv
+# Vaultlier portal master key. Generate with `vaultlier generate-key` or any other 32-byte base64 method.
+VAULT_MASTER_KEY=""
+```
+
+If `.env` already exists, the block is appended. If `VAULT_MASTER_KEY` is
+already present, Vaultlier leaves it untouched.
 
 ## Login and account
 
@@ -53,15 +65,45 @@ npx vaultlier config get      # current settings, API key masked
 npx vaultlier config verify   # re-validates the project id + key with the portal
 ```
 
-`config set project=...` updates `vaultlier.json` and regenerates the typed
-client when one was generated; `config set apiKey=...` updates only the local credential cache and
+`config set project=...` updates `vaultlier.config.json` (or the active legacy
+`vaultlier.json`) and regenerates the typed client when one was generated;
+`config set apiKey=...` updates only the local credential cache and
 never prints the key back. You can skip storing a key entirely and set
 `VAULTLIER_API_KEY` in the environment instead - the CLI and runtime resolve
 it automatically.
 
 `pull`, `push`, and `diff` sync schema **metadata** (key names, types, scopes, environments - never values) with the Vaultlier portal using your API key. The portal base URL can be overridden with `--api-url=<url>` or `VAULTLIER_API_URL` for self-hosted deployments. Without an API key, `pull` falls back to regenerating from local metadata.
 
-Generated config includes a `$schema` reference to `https://schema.vaultlier.com/v2/vaultlier.schema.json` for editor validation. **No secret values are written to disk.**
+Generated config includes a `$schema` reference to `https://schema.vaultlier.com/v2/vaultlier.schema.json` for editor validation. **No secret values are written to disk.** The generated `.env` entry is an empty placeholder; store a real `VAULT_MASTER_KEY` only in trusted server environments.
+
+## Audit
+
+Run a dependency-free local security scan from the repository root:
+
+```bash
+npx vaultlier audit
+npx vaultlier audit --ai
+npx vaultlier audit --output=security-report.html
+npx vaultlier audit --no-ai
+```
+
+The CLI prints score analytics for project structure, exposed unprotected
+secrets, dependency posture, and framework surface. It writes a full local HTML
+report (`vaultlier-audit-report.html` by default) and records a metadata-only
+`audit.lastRun` summary in `vaultlier.config.json` or the active legacy config.
+The scanner detects common frameworks such as Next.js, NestJS, Vite, Angular,
+Express, and Node.js from package metadata and config files. It skips common
+generated output (`node_modules`, `dist`, `.next`, build directories, and
+similar caches).
+
+Pass `--ai` to call the hosted `/v1/audit/analyze` endpoint for AI
+recommendations. The command uses the same project API key resolution order as
+other portal commands (explicit `--api-key`, `VAULTLIER_API_KEY`, then local
+credential cache). The portal routes to DeepSeek first, then OpenAI, then
+Anthropic based on configured provider keys. Pass `--no-ai` to force local-only
+scanning. The AI request sends sanitized audit metadata only - scores,
+framework names, finding titles, severities, paths, and recommendations. It
+does not upload source files, `.env` file contents, or secret values.
 
 ## Set secret values
 
@@ -85,7 +127,7 @@ npx vaultlier set DATABASE_URL=postgres://wip-db --env=working --yes
 ```
 
 This declares the environment through an additive schema push (nothing is
-deleted), adopts the synced schema into `vaultlier.json`, then writes the
+deleted), adopts the synced schema into the active config file, then writes the
 values against the new environment. An environment that exists locally but not
 in the portal is synced the same way automatically.
 
@@ -126,8 +168,10 @@ have a single-letter short form. Both `--flag=value` and `--flag value` work.
 |       | `--api-url`    | `--apiUrl`      | all portal commands                    |
 |       | `--project-id` | `--projectId`   | `init`                                 |
 | `-p`  | `--port`       |                 | `dev`                                  |
-| `-o`  | `--output`     |                 | `--generate`, `--generate-env`         |
+| `-o`  | `--output`     |                 | `--generate`, `--generate-env`, `audit` |
 |       | `--client`     |                 | `init`                                 |
+|       | `--ai`         |                 | `audit`                                |
+|       | `--no-ai`      |                 | `audit`                                |
 |       | `--no-client`  |                 | `init`                                 |
 | `-g`  | `--generate`   |                 | standalone                             |
 | `-y`  | `--yes`        |                 | prompts                                |
@@ -185,7 +229,9 @@ The runtime entry uses only `fetch` and Web Crypto - no Node-only imports, no th
 ## Security
 
 - Secrets are resolved in memory and never written to disk.
-- `vaultlier.json` / `vaultlier.config.json` and the generated client (`lib/vaultlier/vaultlier.ts` by default, when enabled) contain metadata only - never secret values or API keys.
+- `vaultlier.config.json` / legacy `vaultlier.json` and the generated client (`lib/vaultlier/vaultlier.ts` by default, when enabled) contain metadata only - never secret values or API keys.
+- `vaultlier audit` reports are local files. The config stores only summary metadata: scores, finding titles, severities, paths, detected frameworks, and optional AI recommendations.
+- `vaultlier audit --ai` sends sanitized metadata to the hosted analyzer; it does not upload source files or raw `.env` values.
 - Never commit your `VAULTLIER_API_KEY`.
 
 ## License

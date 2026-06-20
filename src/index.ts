@@ -19,6 +19,10 @@ export {
   type VaultKeySchema,
   type VaultKeyType,
   type VaultScope,
+  type AuditCategoryScore,
+  type AuditSeverity,
+  type AuditSummary,
+  type AuditSummaryCategory,
   type VaultlierError,
   API_KEY_ENV,
 } from "./schema/types.js";

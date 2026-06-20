@@ -61,6 +61,15 @@ import {
 import type { AccountCredentials } from "./login.js";
 import { selectFromList, selectManyFromList } from "./prompt.js";
 import {
+  auditSummaryFromReport,
+  buildAuditAnalyzePayload,
+  defaultAuditReportPath,
+  runLocalAudit,
+  writeAuditHtmlReport,
+} from "./audit.js";
+import type { AuditReport } from "./audit.js";
+import type { AuditAiAnalysis } from "./audit.js";
+import {
   discoverEnvMetadata,
   generateEnvFile,
   mergeKeysIntoConfig,
@@ -68,6 +77,12 @@ import {
 } from "./env.js";
 import { createUi } from "./ui.js";
 import type { Ui } from "./ui.js";
+
+const MASTER_KEY_ENV_FILE = ".env";
+const MASTER_KEY_ENV_NAME = "VAULT_MASTER_KEY";
+const MASTER_KEY_ENV_PLACEHOLDER =
+  "# Vaultlier portal master key. Generate with `vaultlier generate-key` or any other 32-byte base64 method.\n" +
+  `${MASTER_KEY_ENV_NAME}=""\n`;
 
 export type CommandName =
   | "init"
@@ -83,6 +98,7 @@ export type CommandName =
   | "whoami"
   | "dev"
   | "scan"
+  | "audit"
   | "generate-key";
 
 export interface ParsedArgs {
@@ -141,6 +157,7 @@ type Installer = (params: {
 const VALUE_FLAGS = new Set([
   "api-key",
   "api-url",
+  "client",
   "drop",
   "env",
   "environments",
@@ -281,7 +298,7 @@ Usage:
 
 Commands:
   init                   Set up this directory: log in, pick or create a
-                         project, and write vaultlier.json (+ an optional typed
+                         project, and write ${GENERATED_FILES.config} (+ an optional typed
                          SDK client at ${GENERATED_FILES.client})
   login                  Authenticate this machine via the browser
   logout                 Remove the locally stored account credentials
@@ -300,6 +317,8 @@ Commands:
   dev                    Start the local config UI on port ${DEV_PORT} (shows
                          remote dev values when an API key is available)
   scan                   Detect env keys and optionally update schema metadata
+  audit                  Scan local security posture, write an HTML report,
+                         and store the summary in the Vaultlier config
   generate-key           Print a fresh VAULT_MASTER_KEY (32 random bytes, base64)
                          for the server to seal secrets. Not stored or logged.
 
@@ -316,6 +335,8 @@ Options:
   -g, --generate             Create a key-only .env file from schema metadata
       --generate-env         Create a key-only .env file after pull
   -o, --output=<path>        Target path for generated key-only .env (default .env)
+      --ai                   audit: request hosted AI recommendations
+      --no-ai                audit: force local-only scanning
   -y, --yes                  Accept schema update prompts
       --client[=<path>]      init: generate the typed SDK client (optionally at
                              <path>; default ${GENERATED_FILES.client})
@@ -341,6 +362,7 @@ const COMMANDS = [
   "whoami",
   "dev",
   "scan",
+  "audit",
   "generate-key",
 ] as const satisfies readonly CommandName[];
 
@@ -408,6 +430,24 @@ Options:
   -e, --env=<name|all>   Validate a target environment before diffing.
   -k, --api-key=<key>    Project API key.
   -h, --help             Show this help.
+`,
+  audit: `vaultlier audit - scan local security posture
+
+Usage:
+  vaultlier audit [--output=<path>]
+
+Options:
+  -o, --output=<path>    HTML report path (default ${defaultAuditReportPath()}).
+      --ai               Request hosted AI recommendations.
+      --no-ai            Force local-only scanning.
+  -h, --help             Show this help.
+
+Notes:
+  Runs dependency-free local checks for exposed plaintext secrets, project
+  structure risks, dependency script risks, and framework-specific public-env
+  hazards. Pass --ai to send sanitized audit metadata to the hosted analyzer.
+  The full HTML report is written to disk; a metadata-only summary is recorded
+  in the active Vaultlier config when one exists.
 `,
 };
 
@@ -490,6 +530,8 @@ export async function run(
       return devCommand(flags, ctx);
     case "scan":
       return scanCommand(flags, ctx);
+    case "audit":
+      return auditCommand(flags, ctx);
     default:
       ctx.ui.error(`Unknown command: ${command}`);
       writeCommandSuggestions(command, ctx.stderr);
@@ -639,7 +681,7 @@ async function initCommand(
   });
 
   // Client generation is opt-in: the user may prefer to wire the SDK by hand.
-  // When accepted, the chosen path is recorded in vaultlier.json so later
+  // When accepted, the chosen path is recorded in the Vaultlier config so later
   // commands (pull/push/set/...) know where to regenerate it.
   const clientPath = await resolveClientPath(flags, ctx);
   if (clientPath) {
@@ -647,6 +689,7 @@ async function initCommand(
   }
 
   await writeJson(configPath, config);
+  const envStatus = await ensureMasterKeyEnvPlaceholder(ctx.cwd);
   const writtenClient = await writeGeneratedClient(ctx.cwd, config);
   await writeCredentialCache(
     ctx.cwd,
@@ -660,6 +703,15 @@ async function initCommand(
     ctx.ui.success(`wrote ${GENERATED_FILES.config}`);
     ctx.ui.info(
       "skipped SDK client - import { createClient } from 'vaultlier' and wire it yourself, or rerun init to generate it",
+    );
+  }
+  if (envStatus === "created") {
+    ctx.ui.success(
+      `wrote ${MASTER_KEY_ENV_FILE} - ${MASTER_KEY_ENV_NAME} placeholder`,
+    );
+  } else if (envStatus === "updated") {
+    ctx.ui.success(
+      `updated ${MASTER_KEY_ENV_FILE} - added ${MASTER_KEY_ENV_NAME} placeholder`,
     );
   }
   if (!apiKey) {
@@ -838,7 +890,7 @@ const CONFIG_SET_USAGE =
 /**
  * `vaultlier config <set|get|verify>` — manage the local project binding.
  *
- *   set project=<id>   update vaultlier.json + credential cache (+ client)
+ *   set project=<id>   update Vaultlier config + credential cache (+ client)
  *   set apiKey=<key>   update the local credential cache (never printed)
  *   get                show the current configuration (masked)
  *   verify             re-validate the project id + API key with the portal
@@ -1190,6 +1242,36 @@ async function scanCommand(
       ? `wrote ${configPath.name} - ${writtenClient}`
       : `wrote ${configPath.name}`,
   );
+  return ExitCode.Success;
+}
+
+async function auditCommand(
+  flags: Record<string, string | boolean>,
+  ctx: CliContext,
+): Promise<ExitCode> {
+  const configPath = await findConfigPath(ctx.cwd);
+  const config = configPath ? await readLocalConfig(ctx) : undefined;
+  if (configPath && !config) return ExitCode.SchemaInvalid;
+
+  const report = await ctx.ui.spin("scanning local security posture", () =>
+    runLocalAudit(ctx.cwd, config),
+  );
+  const analyzedReport = await maybeAnalyzeAudit(report, flags, config, ctx);
+  const reportPath =
+    typeof flags.output === "string" ? flags.output : defaultAuditReportPath();
+  await writeAuditHtmlReport(ctx.cwd, reportPath, analyzedReport);
+
+  if (configPath && config) {
+    await writeJson(configPath.path, {
+      ...config,
+      audit: auditSummaryFromReport(analyzedReport, reportPath),
+    });
+  } else {
+    ctx.ui.warn("no Vaultlier config found - report written without config summary");
+  }
+
+  printAuditSummary(analyzedReport, ctx);
+  ctx.ui.success(`wrote ${reportPath}`);
   return ExitCode.Success;
 }
 
@@ -1696,7 +1778,7 @@ async function setCommand(
     );
   } catch (err) {
     // The environment exists locally but not in the portal yet (e.g. added
-    // by hand to vaultlier.json): sync the declared schema and retry once.
+    // by hand to the config file): sync the declared schema and retry once.
     const missingRemotely =
       !createEnvironment &&
       err instanceof PortalApiError &&
@@ -1949,6 +2031,122 @@ function printSchemaDiff(
   }
 }
 
+function printAuditSummary(report: AuditReport, ctx: CliContext): void {
+  const { style } = ctx.ui;
+  ctx.stdout.write(`${style.bold("vaultlier audit")} - security score ${report.score}%\n`);
+  ctx.stdout.write(`  structure: ${report.categories.structure.score}%\n`);
+  ctx.stdout.write(
+    `  exposed unprotected secrets: ${report.categories.exposedSecrets.score}%\n`,
+  );
+  ctx.stdout.write(`  dependencies: ${report.categories.dependencies.score}%\n`);
+  ctx.stdout.write(`  framework surface: ${report.categories.framework.score}%\n`);
+  if (report.frameworks.length > 0) {
+    ctx.stdout.write(`  frameworks: ${report.frameworks.join(", ")}\n`);
+  }
+  if (report.ai) {
+    ctx.stdout.write(`  ai: ${report.ai.provider}/${report.ai.model}\n`);
+    ctx.stdout.write(`  ${report.ai.summary}\n`);
+  }
+  const visibleFindings = report.findings.slice(0, 5);
+  if (visibleFindings.length === 0) {
+    ctx.ui.success("no local security findings");
+    return;
+  }
+  ctx.stdout.write("findings:\n");
+  for (const finding of visibleFindings) {
+    const path = finding.path ? ` ${style.dim(`(${finding.path})`)}` : "";
+    ctx.stdout.write(
+      `  ${finding.severity.toUpperCase()} ${finding.title}${path}\n`,
+    );
+  }
+  if (report.findings.length > visibleFindings.length) {
+    ctx.stdout.write(
+      `  ${style.dim(`+ ${report.findings.length - visibleFindings.length} more in the HTML report`)}\n`,
+    );
+  }
+}
+
+async function maybeAnalyzeAudit(
+  report: AuditReport,
+  flags: Record<string, string | boolean>,
+  config: VaultlierConfig | undefined,
+  ctx: CliContext,
+): Promise<AuditReport> {
+  if (flags.ai !== true || flags["no-ai"] === true) return report;
+  if (!config) {
+    ctx.ui.warn("skipped AI analysis - no Vaultlier config found");
+    return report;
+  }
+
+  const apiKey = await resolveCliApiKey(flags, ctx);
+  if (!apiKey) {
+    ctx.ui.warn("skipped AI analysis - no project API key available");
+    return report;
+  }
+
+  try {
+    const ai = await ctx.ui.spin("requesting AI audit analysis", () =>
+      requestAuditAnalysis(portalOptions(flags, ctx, apiKey), config.projectId, report),
+    );
+    return { ...report, ai };
+  } catch (err) {
+    ctx.ui.warn(`skipped AI analysis - ${(err as Error).message}`);
+    return report;
+  }
+}
+
+async function requestAuditAnalysis(
+  options: PortalClientOptions,
+  projectId: string,
+  report: AuditReport,
+): Promise<AuditAiAnalysis> {
+  const fetchImpl = options.fetchImpl ?? globalThis.fetch;
+  const res = await fetchImpl(`${options.apiUrl}/v1/audit/analyze`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${options.apiKey ?? ""}`,
+      accept: "application/json",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      projectId,
+      report: buildAuditAnalyzePayload(report),
+    }),
+    redirect: "manual",
+  });
+  const payload: unknown = await res.json().catch(() => undefined);
+  if (!res.ok) {
+    const body = payload as { message?: string } | undefined;
+    throw new Error(body?.message ?? `analyzer request failed with status ${res.status}`);
+  }
+  const analysis = parseAuditAiAnalysis(payload);
+  if (!analysis) throw new Error("analyzer returned an unexpected response");
+  return analysis;
+}
+
+function parseAuditAiAnalysis(payload: unknown): AuditAiAnalysis | undefined {
+  if (payload === null || typeof payload !== "object") return undefined;
+  const value = payload as Partial<AuditAiAnalysis>;
+  if (
+    (value.provider !== "deepseek" &&
+      value.provider !== "openai" &&
+      value.provider !== "anthropic") ||
+    typeof value.model !== "string" ||
+    typeof value.summary !== "string" ||
+    !Array.isArray(value.recommendations)
+  ) {
+    return undefined;
+  }
+  return {
+    provider: value.provider,
+    model: value.model,
+    summary: value.summary,
+    recommendations: value.recommendations.filter(
+      (item): item is string => typeof item === "string",
+    ),
+  };
+}
+
 function reportPortalError(
   command: string,
   err: unknown,
@@ -2083,6 +2281,38 @@ async function resolveClientPath(
     ctx,
   });
   return accepted ? GENERATED_FILES.client : undefined;
+}
+
+async function ensureMasterKeyEnvPlaceholder(
+  cwd: string,
+): Promise<"created" | "updated" | "present"> {
+  const envPath = join(cwd, MASTER_KEY_ENV_FILE);
+  let existing: string;
+  try {
+    existing = await readFile(envPath, "utf8");
+  } catch (err) {
+    if ((err as { code?: string }).code !== "ENOENT") {
+      throw err;
+    }
+    await writeFile(envPath, MASTER_KEY_ENV_PLACEHOLDER, "utf8");
+    return "created";
+  }
+
+  if (new RegExp(`^\\s*${MASTER_KEY_ENV_NAME}\\s*=`, "m").test(existing)) {
+    return "present";
+  }
+
+  const prefix =
+    existing.endsWith("\n") || existing.length === 0
+      ? existing
+      : `${existing}\n`;
+  const separator = existing.trim().length === 0 ? "" : "\n";
+  await writeFile(
+    envPath,
+    `${prefix}${separator}${MASTER_KEY_ENV_PLACEHOLDER}`,
+    "utf8",
+  );
+  return "updated";
 }
 
 async function ensureVaultlierDependency(

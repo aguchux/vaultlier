@@ -39,6 +39,36 @@ describe("validateConfig", () => {
     ).toBe(true);
   });
 
+  it("accepts audit summary metadata", () => {
+    expect(
+      validateConfig({
+        ...valid,
+        audit: {
+          lastRun: {
+            toolVersion: 1,
+            scannedAt: "2026-06-20T00:00:00.000Z",
+            reportPath: "vaultlier-audit-report.html",
+            score: 88,
+            categories: {
+              structure: { score: 100, findings: 0 },
+              exposedSecrets: { score: 70, findings: 1 },
+              dependencies: { score: 100, findings: 0 },
+              framework: { score: 100, findings: 0 },
+            },
+            findings: [],
+            frameworks: ["Next.js"],
+            ai: {
+              provider: "deepseek",
+              model: "deepseek-chat",
+              summary: "No critical issues.",
+              recommendations: ["Keep scanning in CI."],
+            },
+          },
+        },
+      }).valid,
+    ).toBe(true);
+  });
+
   it("rejects a non-string $schema reference", () => {
     const { valid: ok, errors } = validateConfig({
       $schema: 42,
@@ -75,6 +105,15 @@ describe("validateConfig", () => {
     });
     expect(ok).toBe(false);
     expect(errors.join()).toMatch(/description/);
+  });
+
+  it("rejects invalid audit summary scores", () => {
+    const { valid: ok, errors } = validateConfig({
+      ...valid,
+      audit: { lastRun: { score: 101 } },
+    });
+    expect(ok).toBe(false);
+    expect(errors.join()).toMatch(/audit\.lastRun\.score/);
   });
 });
 

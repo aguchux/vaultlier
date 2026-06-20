@@ -5,8 +5,8 @@ Vaultlier replaces the `.env` workflow without writing secret values to disk. Th
 ## Guarantees
 
 1. **No secrets on disk.** Decrypted secret values are never written to the
-   filesystem by the runtime or CLI. The generated artifacts — `vaultlier.json`
-   or `vaultlier.config.json` (metadata) and the optional typed client
+   filesystem by the runtime or CLI. The generated artifacts —
+   `vaultlier.config.json` or legacy `vaultlier.json` (metadata) and the optional typed client
    (`lib/vaultlier/vaultlier.ts` by default) — contain key names, types, and
    scopes only.
 2. **In-memory resolution.** Runtime secret resolution happens in memory. The

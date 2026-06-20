@@ -27,6 +27,48 @@ export interface VaultKeySchema {
   source?: "scan";
 }
 
+export type AuditSeverity = "critical" | "high" | "medium" | "low" | "info";
+
+export interface AuditCategoryScore {
+  score: number;
+  findings: number;
+}
+
+export type AuditSummaryCategory =
+  | "structure"
+  | "exposedSecrets"
+  | "dependencies"
+  | "framework";
+
+export interface AuditSummary {
+  lastRun?: {
+    toolVersion: 1;
+    scannedAt: string;
+    reportPath: string;
+    score: number;
+    categories: {
+      structure: AuditCategoryScore;
+      exposedSecrets: AuditCategoryScore;
+      dependencies: AuditCategoryScore;
+      framework: AuditCategoryScore;
+    };
+    findings: {
+      id: string;
+      title: string;
+      severity: AuditSeverity;
+      category: AuditSummaryCategory;
+      path?: string;
+    }[];
+    frameworks: string[];
+    ai?: {
+      provider: "deepseek" | "openai" | "anthropic";
+      model: string;
+      summary: string;
+      recommendations: string[];
+    };
+  };
+}
+
 /**
  * The on-disk Vaultlier config shape. Metadata only — never contains
  * decrypted secret values.
@@ -44,6 +86,8 @@ export interface VaultlierConfig {
    * the project manages the SDK by hand and no client file is (re)generated.
    */
   client?: string;
+  /** Last local `vaultlier audit` result summary. Metadata only. */
+  audit?: AuditSummary;
 }
 
 /** Canonical hosted JSON Schema for the config file. */
@@ -74,7 +118,7 @@ export const API_KEY_ENV = "VAULTLIER_API_KEY";
 
 /** Names of the generated artifacts written by the CLI. */
 export const GENERATED_FILES = {
-  config: "vaultlier.json",
+  config: "vaultlier.config.json",
   /**
    * Default location for the optional typed SDK client. Client generation is
    * opt-in (see `VaultlierConfig.client`); this is the path `init` proposes and
@@ -86,5 +130,5 @@ export const GENERATED_FILES = {
 /** Config filenames accepted by the CLI. The first entry is the write target. */
 export const CONFIG_FILES = [
   GENERATED_FILES.config,
-  "vaultlier.config.json",
+  "vaultlier.json",
 ] as const;

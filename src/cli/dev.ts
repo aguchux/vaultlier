@@ -3,7 +3,7 @@
  *
  * Starts a small HTTP server (Node-only, no third-party deps) bound to loopback
  * (127.0.0.1) that lets you manage ONE project — the one bound in the local
- * `vaultlier.json` — against the remote Vaultlier store. It is a tiny portal:
+ * Vaultlier config — against the remote Vaultlier store. It is a tiny portal:
  *
  *   • View and edit environment variable VALUES per environment (overwrite).
  *   • View and manage ENVIRONMENTS (create, rename, delete).

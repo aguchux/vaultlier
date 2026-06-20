@@ -41,7 +41,7 @@ function fakePortal(overrides: Partial<DevPortal> = {}): DevPortal {
 function options(over: Partial<DevServerOptions> = {}): DevServerOptions {
   return {
     config,
-    configFile: "vaultlier.json",
+    configFile: "vaultlier.config.json",
     maskedApiKey: "vlt_test…78",
     portal: fakePortal(),
     port: 0,
