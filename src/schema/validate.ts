@@ -45,6 +45,10 @@ export function validateConfig(input: unknown): ValidationResult {
     errors.push("`environments` must contain at least one environment");
   }
 
+  if (cfg.client !== undefined && typeof cfg.client !== "string") {
+    errors.push("`client` must be a string when present");
+  }
+
   if (typeof cfg.keys !== "object" || cfg.keys === null) {
     errors.push("`keys` must be an object");
   } else {

@@ -32,6 +32,7 @@ import {
   createEnvironmentRemote,
   createProject,
   deleteEnvironmentRemote,
+  deleteEnvironmentSecrets,
   diffSchemas,
   fetchEnvironmentConfig,
   fetchPortalSchema,
@@ -78,6 +79,7 @@ export type CommandName =
   | "diff"
   | "update"
   | "set"
+  | "unset"
   | "whoami"
   | "dev"
   | "scan"
@@ -244,7 +246,9 @@ async function readCliVersion(): Promise<string> {
   let dir = dirname(fileURLToPath(import.meta.url));
   for (;;) {
     try {
-      const pkg = JSON.parse(await readFile(join(dir, "package.json"), "utf8")) as {
+      const pkg = JSON.parse(
+        await readFile(join(dir, "package.json"), "utf8"),
+      ) as {
         name?: unknown;
         version?: unknown;
       };
@@ -271,12 +275,14 @@ Usage:
   vaultlier <command> [options]
   vaultlier update --env=<name|all>
   vaultlier set KEY=VALUE [KEY=VALUE ...] --env=<name>
+  vaultlier unset KEY [KEY ...] --env=<name>
   vaultlier config <set|get|verify> [project=<id>] [apiKey=<key>]
   vaultlier generate-key            (also: vaultlier generate key)
 
 Commands:
   init                   Set up this directory: log in, pick or create a
-                         project, and write vaultlier.json + lib/vaultlier.ts
+                         project, and write vaultlier.json (+ an optional typed
+                         SDK client at ${GENERATED_FILES.client})
   login                  Authenticate this machine via the browser
   logout                 Remove the locally stored account credentials
   config set k=v ...     Update local settings (project=<prj_id>, apiKey=<vlt_key>)
@@ -288,6 +294,8 @@ Commands:
   update                 Review schema vars for an environment and drop stale ones
   set KEY=VALUE ...      Write secret values to one environment (requires --env;
                          creates the environment in the portal when missing)
+  unset KEY ...          Remove secret values for keys from one environment
+                         (requires --env; schema metadata is left intact)
   whoami                 Print the authenticated project context
   dev                    Start the local config UI on port ${DEV_PORT} (shows
                          remote dev values when an API key is available)
@@ -309,6 +317,9 @@ Options:
       --generate-env         Create a key-only .env file after pull
   -o, --output=<path>        Target path for generated key-only .env (default .env)
   -y, --yes                  Accept schema update prompts
+      --client[=<path>]      init: generate the typed SDK client (optionally at
+                             <path>; default ${GENERATED_FILES.client})
+      --no-client            init: skip generating the typed SDK client
       --install              Install vaultlier dependency without prompting
       --no-install           Skip dependency install prompt
   -f, --force                Allow overwriting existing config metadata
@@ -326,6 +337,7 @@ const COMMANDS = [
   "diff",
   "update",
   "set",
+  "unset",
   "whoami",
   "dev",
   "scan",
@@ -370,6 +382,23 @@ Options:
   -k, --api-key=<key>    Project API key.
   -h, --help             Show this help.
 `,
+  unset: `vaultlier unset - remove secret values from one environment
+
+Usage:
+  vaultlier unset KEY [KEY ...] --env=<name>
+
+Options:
+  -e, --env=<name>       Target environment (required; "all" is not allowed).
+  -k, --api-key=<key>    Project API key.
+  -y, --yes              Skip the destructive-removal confirmation.
+  -h, --help             Show this help.
+
+Notes:
+  Removes the stored values for the named keys; the schema metadata (key
+  names, types, scopes) is left intact, so keys can be re-set later. Values
+  are never read, printed, or written to disk. KEY=VALUE is accepted (the
+  value is ignored) so a \`set\` line can be reused.
+`,
   diff: `vaultlier diff - compare local and portal schema metadata
 
 Usage:
@@ -408,7 +437,7 @@ export async function run(
   // from the .env generator (`generate`/`-g` with no `key` positional) by the
   // positional argument.
   if (
-    (command === "generate-key") ||
+    command === "generate-key" ||
     (command === "generate" && positionals[0] === "key") ||
     (flags.generate === true && positionals[0] === "key")
   ) {
@@ -453,6 +482,8 @@ export async function run(
       return updateCommand(flags, ctx);
     case "set":
       return setCommand(flags, positionals, ctx);
+    case "unset":
+      return unsetCommand(flags, positionals, ctx);
     case "whoami":
       return whoamiCommand(ctx);
     case "dev":
@@ -478,7 +509,9 @@ function writeHelp(
   }
 
   const normalized =
-    command === "generate" && positionals[0] === "key" ? "generate-key" : command;
+    command === "generate" && positionals[0] === "key"
+      ? "generate-key"
+      : command;
   if (isCommandName(normalized)) {
     ctx.stdout.write(COMMAND_HELP[normalized] ?? HELP);
     return;
@@ -605,17 +638,30 @@ async function initCommand(
     command: "init",
   });
 
+  // Client generation is opt-in: the user may prefer to wire the SDK by hand.
+  // When accepted, the chosen path is recorded in vaultlier.json so later
+  // commands (pull/push/set/...) know where to regenerate it.
+  const clientPath = await resolveClientPath(flags, ctx);
+  if (clientPath) {
+    config = { ...config, client: clientPath };
+  }
+
   await writeJson(configPath, config);
-  await writeGeneratedClient(ctx.cwd, config);
+  const writtenClient = await writeGeneratedClient(ctx.cwd, config);
   await writeCredentialCache(
     ctx.cwd,
     apiKey ? { projectId, apiKey } : { projectId },
   );
 
   ctx.ui.success(`validated - ${environments.length} environments synced`);
-  ctx.ui.success(
-    `wrote ${GENERATED_FILES.config} - ${GENERATED_FILES.client}`,
-  );
+  if (writtenClient) {
+    ctx.ui.success(`wrote ${GENERATED_FILES.config} - ${writtenClient}`);
+  } else {
+    ctx.ui.success(`wrote ${GENERATED_FILES.config}`);
+    ctx.ui.info(
+      "skipped SDK client - import { createClient } from 'vaultlier' and wire it yourself, or rerun init to generate it",
+    );
+  }
   if (!apiKey) {
     ctx.ui.warn(
       `no API key set - create one in the portal, then run vaultlier config set apiKey=<vlt_...> or set ${API_KEY_ENV}`,
@@ -958,8 +1004,9 @@ async function pullCommand(
     const projectId = config.projectId;
     let portal: PortalSchema;
     try {
-      portal = await ctx.ui.spin("pulling schema metadata from the portal", () =>
-        fetchPortalSchema(portalOptions(flags, ctx, apiKey), projectId),
+      portal = await ctx.ui.spin(
+        "pulling schema metadata from the portal",
+        () => fetchPortalSchema(portalOptions(flags, ctx, apiKey), projectId),
       );
     } catch (err) {
       return reportPortalError("pull", err, ctx);
@@ -973,7 +1020,7 @@ async function pullCommand(
     ctx.ui.warn("no API key found - using local schema metadata");
   }
 
-  await writeGeneratedClient(ctx.cwd, config);
+  const writtenClient = await writeGeneratedClient(ctx.cwd, config);
   if (flags["generate-env"] === true) {
     const envCode = await writeKeyOnlyEnvFile(config, flags, ctx);
     if (envCode !== ExitCode.Success) return envCode;
@@ -981,7 +1028,7 @@ async function pullCommand(
   ctx.ui.success(
     `validated - ${config.environments.length} environments synced`,
   );
-  ctx.ui.success(`wrote ${GENERATED_FILES.client}`);
+  if (writtenClient) ctx.ui.success(`wrote ${writtenClient}`);
   return ExitCode.Success;
 }
 
@@ -1025,7 +1072,11 @@ async function devCommand(
     const projectId = config.projectId;
     portal = {
       getValues: async (environment) => {
-        const values = await fetchEnvironmentConfig(options, projectId, environment);
+        const values = await fetchEnvironmentConfig(
+          options,
+          projectId,
+          environment,
+        );
         return Object.fromEntries(
           Object.entries(values).map(([name, value]) => [
             name,
@@ -1133,8 +1184,12 @@ async function scanCommand(
   if (updatedConfig === config) return ExitCode.Success;
 
   await writeJson(configPath.path, updatedConfig);
-  await writeGeneratedClient(ctx.cwd, updatedConfig);
-  ctx.ui.success(`wrote ${configPath.name} - ${GENERATED_FILES.client}`);
+  const writtenClient = await writeGeneratedClient(ctx.cwd, updatedConfig);
+  ctx.ui.success(
+    writtenClient
+      ? `wrote ${configPath.name} - ${writtenClient}`
+      : `wrote ${configPath.name}`,
+  );
   return ExitCode.Success;
 }
 
@@ -1162,12 +1217,18 @@ async function updateCommand(
   const environment = await resolveUpdateEnvironment(flags, config, ctx);
   if (!environment) return ExitCode.SchemaInvalid;
 
-  const envResult = validateEnvFlag({ ...flags, env: environment }, config, ctx);
+  const envResult = validateEnvFlag(
+    { ...flags, env: environment },
+    config,
+    ctx,
+  );
   if (envResult !== ExitCode.Success) return envResult;
 
   const entries = Object.entries(config.keys)
     .filter(([, schema]) =>
-      environment === "all" ? true : keyAppliesToEnvironment(schema, environment),
+      environment === "all"
+        ? true
+        : keyAppliesToEnvironment(schema, environment),
     )
     .sort(([a], [b]) => a.localeCompare(b));
 
@@ -1219,9 +1280,7 @@ async function updateCommand(
       return ExitCode.GenericError;
     }
     const keep = new Set(selected.map((index) => entries[index]![0]));
-    dropKeys = entries
-      .map(([name]) => name)
-      .filter((name) => !keep.has(name));
+    dropKeys = entries.map(([name]) => name).filter((name) => !keep.has(name));
   }
 
   if (dropKeys.length === 0) {
@@ -1229,11 +1288,11 @@ async function updateCommand(
     return ExitCode.Success;
   }
 
-  const { config: updatedConfig, removed, unscoped } = dropSchemaKeys(
-    config,
-    environment,
-    dropKeys,
-  );
+  const {
+    config: updatedConfig,
+    removed,
+    unscoped,
+  } = dropSchemaKeys(config, environment, dropKeys);
   const validation = validateConfig(updatedConfig);
   if (!validation.valid) {
     ctx.ui.error(`vaultlier update: ${validation.errors.join("; ")}`);
@@ -1662,11 +1721,116 @@ async function setCommand(
 
   const { style } = ctx.ui;
   for (const [name, version] of Object.entries(result.versions)) {
-    ctx.stdout.write(`  ${style.cyan(name)} -> ${style.green(`v${version}`)}\n`);
+    ctx.stdout.write(
+      `  ${style.cyan(name)} -> ${style.green(`v${version}`)}\n`,
+    );
   }
   const count = Object.keys(result.versions).length;
   ctx.ui.success(
     `set ${count} value${count === 1 ? "" : "s"} in "${result.environment}"`,
+  );
+  return ExitCode.Success;
+}
+
+/**
+ * `vaultlier unset KEY [KEY ...] --env=<name>` — remove secret values from one
+ * environment. The counterpart to `set`: it deletes the stored values for the
+ * named keys via the portal (the schema metadata is left intact, so the keys
+ * can be re-set later). Values never touch disk and are never echoed.
+ */
+async function unsetCommand(
+  flags: Record<string, string | boolean>,
+  positionals: string[],
+  ctx: CliContext,
+): Promise<ExitCode> {
+  const config = await readLocalConfig(ctx);
+  if (!config) return ExitCode.SchemaInvalid;
+
+  const environment = getEnvFlag(flags);
+  if (!environment || environment === "all") {
+    ctx.ui.error(
+      "vaultlier unset: a single target environment is required, e.g. --env=prod",
+    );
+    return ExitCode.SchemaInvalid;
+  }
+  const envResult = validateEnvFlag(flags, config, ctx);
+  if (envResult !== ExitCode.Success) return envResult;
+
+  if (positionals.length === 0) {
+    ctx.ui.error(
+      "vaultlier unset: provide at least one KEY, e.g. vaultlier unset DATABASE_URL --env=prod",
+    );
+    return ExitCode.SchemaInvalid;
+  }
+
+  // Accept bare keys; tolerate KEY=VALUE so users can reuse a `set` line, but
+  // ignore the value — we only remove, never read.
+  const keys: string[] = [];
+  const seen = new Set<string>();
+  for (const positional of positionals) {
+    const separator = positional.indexOf("=");
+    const name = separator === -1 ? positional : positional.slice(0, separator);
+    if (!KEY_NAME_PATTERN.test(name)) {
+      ctx.ui.error(`vaultlier unset: invalid key name "${name}"`);
+      return ExitCode.SchemaInvalid;
+    }
+    if (!seen.has(name)) {
+      seen.add(name);
+      keys.push(name);
+    }
+  }
+
+  const apiKey = await resolveCliApiKey(flags, ctx);
+  if (!apiKey) {
+    ctx.ui.error(
+      `vaultlier unset: missing API key. Pass --api-key, set ${API_KEY_ENV}, or run vaultlier init.`,
+    );
+    return ExitCode.AuthFailed;
+  }
+  if (!looksLikeApiKey(apiKey)) {
+    ctx.ui.error(
+      'vaultlier unset: invalid API key format (expected a "vlt_" key)',
+    );
+    return ExitCode.AuthFailed;
+  }
+
+  // Removing values is destructive and unrecoverable, so confirm unless --yes.
+  let shouldUnset = flags.yes === true;
+  if (!shouldUnset) {
+    shouldUnset = await confirm({
+      prompt: `Remove ${keys.length} value${keys.length === 1 ? "" : "s"} from "${environment}"? This cannot be undone. [y/N] `,
+      defaultValue: false,
+      ctx,
+    });
+  }
+  if (!shouldUnset) {
+    ctx.ui.warn("skipped - no values removed");
+    return ExitCode.Success;
+  }
+
+  const options = portalOptions(flags, ctx, apiKey);
+  let result;
+  try {
+    result = await ctx.ui.spin(
+      `removing ${keys.length} value${keys.length === 1 ? "" : "s"} from "${environment}"`,
+      () =>
+        deleteEnvironmentSecrets(options, config.projectId, environment, keys),
+    );
+  } catch (err) {
+    return reportPortalError("unset", err, ctx);
+  }
+
+  const { style } = ctx.ui;
+  for (const name of result.removed) {
+    ctx.stdout.write(`  ${style.cyan(name)} -> ${style.dim("removed")}\n`);
+  }
+  const skipped = keys.filter((name) => !result.removed.includes(name));
+  for (const name of skipped) {
+    ctx.stdout.write(`  ${style.dim(`${name} -> not set`)}\n`);
+  }
+  const count = result.removed.length;
+  ctx.ui.success(
+    `removed ${count} value${count === 1 ? "" : "s"} from "${result.environment}"`,
   );
   return ExitCode.Success;
 }
@@ -1886,6 +2050,41 @@ async function writeKeyOnlyEnvFile(
   return ExitCode.Success;
 }
 
+/**
+ * Decide whether `init` generates the typed SDK client, and where.
+ *
+ * Resolution order:
+ *   --no-client            -> skip (returns undefined)
+ *   --client=<path>        -> use that path (also accepts --output for parity)
+ *   --client / --yes       -> default path, non-interactively
+ *   TTY                    -> prompt; "y" accepts the default path
+ *   non-TTY (no flags)     -> default to generating at the default path
+ *
+ * Returns the chosen path (relative to cwd) or undefined to skip generation.
+ */
+async function resolveClientPath(
+  flags: Record<string, string | boolean>,
+  ctx: CliContext,
+): Promise<string | undefined> {
+  if (flags["no-client"] === true) return undefined;
+
+  const explicit = flags.client ?? flags.output;
+  if (typeof explicit === "string" && explicit.length > 0) return explicit;
+
+  if (flags.client === true || flags.yes === true)
+    return GENERATED_FILES.client;
+
+  const stdin = ctx.stdin as NodeJS.ReadableStream & { isTTY?: boolean };
+  if (stdin.isTTY !== true) return GENERATED_FILES.client;
+
+  const accepted = await confirm({
+    prompt: `Generate a typed Vaultlier SDK client at ${GENERATED_FILES.client}? [Y/n] `,
+    defaultValue: true,
+    ctx,
+  });
+  return accepted ? GENERATED_FILES.client : undefined;
+}
+
 async function ensureVaultlierDependency(
   flags: Record<string, string | boolean>,
   ctx: CliContext,
@@ -1994,13 +2193,24 @@ function getEnvFlag(
   return typeof flags.env === "string" ? flags.env : undefined;
 }
 
+/**
+ * Regenerate the typed SDK client when the project opted into it.
+ *
+ * The target path lives in `config.client` (set by `init` when the user
+ * accepts generation). When it is absent the project manages the SDK by hand,
+ * so we write nothing — this keeps `pull`/`push`/`set`/etc. from resurrecting a
+ * client the user chose to skip. Returns the relative path written, or
+ * undefined when generation is disabled.
+ */
 async function writeGeneratedClient(
   cwd: string,
   config: VaultlierConfig,
-): Promise<void> {
-  const clientPath = join(cwd, GENERATED_FILES.client);
+): Promise<string | undefined> {
+  if (!config.client) return undefined;
+  const clientPath = join(cwd, config.client);
   await mkdir(dirname(clientPath), { recursive: true });
   await writeFile(clientPath, generateClient(config), "utf8");
+  return config.client;
 }
 
 async function writeCredentialCache(

@@ -36,7 +36,10 @@ afterEach(async () => {
 
 /** Build a fake portal transport. Records requests; replies per handler. */
 function fakePortal(
-  handler: (url: string, init?: { method?: string; body?: string }) => {
+  handler: (
+    url: string,
+    init?: { method?: string; body?: string },
+  ) => {
     status: number;
     body: unknown;
   },
@@ -130,7 +133,12 @@ describe("parseArgs", () => {
   });
 
   it("collects KEY=VALUE args after a command as positionals", () => {
-    const r = parseArgs(["set", "DATABASE_URL=postgres://x", "RETRIES=3", "--env=prod"]);
+    const r = parseArgs([
+      "set",
+      "DATABASE_URL=postgres://x",
+      "RETRIES=3",
+      "--env=prod",
+    ]);
     expect(r.command).toBe("set");
     expect(r.positionals).toEqual(["DATABASE_URL=postgres://x", "RETRIES=3"]);
     expect(r.env).toBe("prod");
@@ -187,7 +195,10 @@ describe("run", () => {
     const a = capture();
     const b = capture();
     await run(["generate-key"], { stdout: a.stream, stderr: capture().stream });
-    await run(["generate", "key"], { stdout: b.stream, stderr: capture().stream });
+    await run(["generate", "key"], {
+      stdout: b.stream,
+      stderr: capture().stream,
+    });
     // The `generate key` positional form works too, and yields a distinct key.
     expect(b.read().trim().length).toBeGreaterThan(0);
     expect(a.read().trim()).not.toBe(b.read().trim());
@@ -218,7 +229,10 @@ describe("run", () => {
     expect(parsedConfig.projectId).toBe("prj_checkout_api");
     expect(config).not.toContain("vlt_test_12345678");
 
-    const client = await readFile(join(cwd, "lib", "vaultlier.ts"), "utf8");
+    const client = await readFile(
+      join(cwd, "lib", "vaultlier", "vaultlier.ts"),
+      "utf8",
+    );
     expect(client).toContain("createClient");
     expect(client).toContain("prj_checkout_api");
     expect(client).not.toContain("vlt_test_12345678");
@@ -256,9 +270,92 @@ describe("run", () => {
     expect(config).not.toContain("postgres://");
     expect(config).not.toContain("sk_test_secret");
 
-    const client = await readFile(join(cwd, "lib", "vaultlier.ts"), "utf8");
+    const client = await readFile(
+      join(cwd, "lib", "vaultlier", "vaultlier.ts"),
+      "utf8",
+    );
     expect(client).toContain("DATABASE_URL: string;");
     expect(client).not.toContain("sk_test_secret");
+  });
+
+  it("init skips client generation with --no-client and omits the path from config", async () => {
+    const cwd = await makeTempDir();
+    const stdout = capture();
+
+    const code = await run(
+      [
+        "init",
+        "--project-id=prj_checkout_api",
+        "--api-key=vlt_test_12345678",
+        "--no-client",
+        "--yes",
+      ],
+      { cwd, stdout: stdout.stream },
+    );
+
+    expect(code).toBe(ExitCode.Success);
+    const config = JSON.parse(
+      await readFile(join(cwd, "vaultlier.json"), "utf8"),
+    ) as { client?: string };
+    expect(config.client).toBeUndefined();
+    await expect(
+      readFile(join(cwd, "lib", "vaultlier", "vaultlier.ts"), "utf8"),
+    ).rejects.toThrow();
+    expect(stdout.read()).toContain("skipped SDK client");
+  });
+
+  it("init writes the client to a custom path from --client and records it", async () => {
+    const cwd = await makeTempDir();
+
+    const code = await run(
+      [
+        "init",
+        "--project-id=prj_checkout_api",
+        "--api-key=vlt_test_12345678",
+        "--client=src/vault.ts",
+        "--yes",
+      ],
+      { cwd, stdout: capture().stream },
+    );
+
+    expect(code).toBe(ExitCode.Success);
+    const config = JSON.parse(
+      await readFile(join(cwd, "vaultlier.json"), "utf8"),
+    ) as { client?: string };
+    expect(config.client).toBe("src/vault.ts");
+    const client = await readFile(join(cwd, "src", "vault.ts"), "utf8");
+    expect(client).toContain("createClient");
+    await expect(
+      readFile(join(cwd, "lib", "vaultlier", "vaultlier.ts"), "utf8"),
+    ).rejects.toThrow();
+  });
+
+  it("pull does not generate a client when the config opted out", async () => {
+    const cwd = await makeTempDir();
+    await writeFile(
+      join(cwd, "vaultlier.json"),
+      JSON.stringify(
+        {
+          projectId: "prj_checkout_api",
+          version: 1,
+          environments: ["dev"],
+          keys: { DATABASE_URL: { type: "string", scopes: ["all"] } },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    const code = await run(["pull", "--env=dev"], {
+      cwd,
+      stdout: capture().stream,
+    });
+
+    expect(code).toBe(ExitCode.Success);
+    await expect(
+      readFile(join(cwd, "lib", "vaultlier", "vaultlier.ts"), "utf8"),
+    ).rejects.toThrow();
   });
 
   it("init refuses to overwrite metadata without --force", async () => {
@@ -438,6 +535,7 @@ describe("run", () => {
           version: 1,
           environments: ["dev"],
           keys: {},
+          client: "lib/vaultlier/vaultlier.ts",
         },
         null,
         2,
@@ -459,7 +557,10 @@ describe("run", () => {
       await readFile(join(cwd, "vaultlier.json"), "utf8"),
     ) as { projectId: string };
     expect(config.projectId).toBe("prj_new");
-    const client = await readFile(join(cwd, "lib", "vaultlier.ts"), "utf8");
+    const client = await readFile(
+      join(cwd, "lib", "vaultlier", "vaultlier.ts"),
+      "utf8",
+    );
     expect(client).toContain("prj_new");
     const cache = JSON.parse(
       await readFile(join(cwd, ".vaultlier", "credentials.json"), "utf8"),
@@ -715,6 +816,7 @@ describe("run", () => {
             FEATURE_NEW_FLOW: { type: "boolean", default: false },
             DATABASE_URL: { type: "string", scopes: ["all"] },
           },
+          client: "lib/vaultlier/vaultlier.ts",
         },
         null,
         2,
@@ -728,7 +830,10 @@ describe("run", () => {
     });
 
     expect(code).toBe(ExitCode.Success);
-    const client = await readFile(join(cwd, "lib", "vaultlier.ts"), "utf8");
+    const client = await readFile(
+      join(cwd, "lib", "vaultlier", "vaultlier.ts"),
+      "utf8",
+    );
     expect(client).toContain("DATABASE_URL: string;");
     expect(client).toContain("FEATURE_NEW_FLOW: boolean;");
     expect(client).not.toContain("false");
@@ -1145,7 +1250,12 @@ describe("run", () => {
     const unknownStderr = capture();
     expect(
       await run(
-        ["set", "NOT_IN_SCHEMA=value", "--env=prod", "--api-key=vlt_test_12345678"],
+        [
+          "set",
+          "NOT_IN_SCHEMA=value",
+          "--env=prod",
+          "--api-key=vlt_test_12345678",
+        ],
         { cwd, stderr: unknownStderr.stream, fetch: portal.fetchImpl },
       ),
     ).toBe(ExitCode.SchemaInvalid);
@@ -1154,7 +1264,12 @@ describe("run", () => {
     const scopeStderr = capture();
     expect(
       await run(
-        ["set", "STRIPE_SECRET=sk_live_abc", "--env=dev", "--api-key=vlt_test_12345678"],
+        [
+          "set",
+          "STRIPE_SECRET=sk_live_abc",
+          "--env=dev",
+          "--api-key=vlt_test_12345678",
+        ],
         { cwd, stderr: scopeStderr.stream, fetch: portal.fetchImpl },
       ),
     ).toBe(ExitCode.SchemaInvalid);
@@ -1270,7 +1385,13 @@ describe("run", () => {
     const portal = fakePortal(() => ({ status: 200, body: {} }));
 
     const code = await run(
-      ["set", "DATABASE_URL=x", "--env=%bad", "--yes", "--api-key=vlt_test_12345678"],
+      [
+        "set",
+        "DATABASE_URL=x",
+        "--env=%bad",
+        "--yes",
+        "--api-key=vlt_test_12345678",
+      ],
       { cwd, stderr: stderr.stream, fetch: portal.fetchImpl },
     );
 
@@ -1314,7 +1435,12 @@ describe("run", () => {
     });
 
     const code = await run(
-      ["set", "DATABASE_URL=postgres://x", "--env=prod", "--api-key=vlt_test_12345678"],
+      [
+        "set",
+        "DATABASE_URL=postgres://x",
+        "--env=prod",
+        "--api-key=vlt_test_12345678",
+      ],
       { cwd, stdout: stdout.stream, fetch: portal.fetchImpl },
     );
 
@@ -1328,6 +1454,122 @@ describe("run", () => {
     expect(stdout.read()).toContain("DATABASE_URL -> v5");
   });
 
+  it("unset removes secret values via DELETE and reports removed keys", async () => {
+    const cwd = await makeSetProject();
+    const stdout = capture();
+    const portal = fakePortal(() => ({
+      status: 200,
+      body: { environment: "prod", removed: ["DATABASE_URL", "STRIPE_SECRET"] },
+    }));
+
+    const code = await run(
+      [
+        "unset",
+        "DATABASE_URL",
+        "STRIPE_SECRET",
+        "--env=prod",
+        "--yes",
+        "--api-key=vlt_test_12345678",
+        "--api-url=https://portal.test",
+      ],
+      { cwd, stdout: stdout.stream, fetch: portal.fetchImpl },
+    );
+
+    expect(code).toBe(ExitCode.Success);
+    expect(portal.requests).toHaveLength(1);
+    expect(portal.requests[0]!.method).toBe("DELETE");
+    expect(portal.requests[0]!.url).toBe(
+      "https://portal.test/v1/projects/prj_checkout_api/secrets",
+    );
+    expect(JSON.parse(portal.requests[0]!.body!)).toEqual({
+      environment: "prod",
+      keys: ["DATABASE_URL", "STRIPE_SECRET"],
+    });
+    const out = stdout.read();
+    expect(out).toContain("DATABASE_URL -> removed");
+    expect(out).toContain('removed 2 values from "prod"');
+  });
+
+  it("unset accepts KEY=VALUE but never sends the value", async () => {
+    const cwd = await makeSetProject();
+    const portal = fakePortal(() => ({
+      status: 200,
+      body: { environment: "prod", removed: ["DATABASE_URL"] },
+    }));
+
+    const code = await run(
+      [
+        "unset",
+        "DATABASE_URL=postgres://should-not-be-sent",
+        "--env=prod",
+        "--yes",
+        "--api-key=vlt_test_12345678",
+      ],
+      { cwd, stdout: capture().stream, fetch: portal.fetchImpl },
+    );
+
+    expect(code).toBe(ExitCode.Success);
+    expect(JSON.parse(portal.requests[0]!.body!)).toEqual({
+      environment: "prod",
+      keys: ["DATABASE_URL"],
+    });
+    expect(portal.requests[0]!.body).not.toContain("should-not-be-sent");
+  });
+
+  it("unset reports keys that were not set", async () => {
+    const cwd = await makeSetProject();
+    const stdout = capture();
+    const portal = fakePortal(() => ({
+      status: 200,
+      body: { environment: "prod", removed: ["DATABASE_URL"] },
+    }));
+
+    const code = await run(
+      [
+        "unset",
+        "DATABASE_URL",
+        "STRIPE_SECRET",
+        "--env=prod",
+        "--yes",
+        "--api-key=vlt_test_12345678",
+      ],
+      { cwd, stdout: stdout.stream, fetch: portal.fetchImpl },
+    );
+
+    expect(code).toBe(ExitCode.Success);
+    expect(stdout.read()).toContain("STRIPE_SECRET -> not set");
+  });
+
+  it("unset requires a single environment, not all", async () => {
+    const cwd = await makeSetProject();
+    const stderr = capture();
+    const portal = fakePortal(() => ({ status: 200, body: {} }));
+
+    const code = await run(
+      ["unset", "DATABASE_URL", "--env=all", "--api-key=vlt_test_12345678"],
+      { cwd, stderr: stderr.stream, fetch: portal.fetchImpl },
+    );
+
+    expect(code).toBe(ExitCode.SchemaInvalid);
+    expect(stderr.read()).toContain("single target environment is required");
+    expect(portal.requests).toHaveLength(0);
+  });
+
+  it("unset requires at least one key", async () => {
+    const cwd = await makeSetProject();
+    const stderr = capture();
+    const portal = fakePortal(() => ({ status: 200, body: {} }));
+
+    const code = await run(
+      ["unset", "--env=prod", "--api-key=vlt_test_12345678"],
+      { cwd, stderr: stderr.stream, fetch: portal.fetchImpl },
+    );
+
+    expect(code).toBe(ExitCode.SchemaInvalid);
+    expect(stderr.read()).toContain("provide at least one KEY");
+    expect(portal.requests).toHaveLength(0);
+  });
+
   it("pull adopts the portal schema and regenerates the client", async () => {
     const cwd = await makeTempDir();
     await writeFile(
@@ -1338,6 +1580,7 @@ describe("run", () => {
           version: 1,
           environments: ["dev"],
           keys: {},
+          client: "lib/vaultlier/vaultlier.ts",
         },
         null,
         2,
@@ -1363,7 +1606,10 @@ describe("run", () => {
     expect(config.version).toBe(3);
     expect(config.environments).toEqual(["dev", "prod"]);
 
-    const client = await readFile(join(cwd, "lib", "vaultlier.ts"), "utf8");
+    const client = await readFile(
+      join(cwd, "lib", "vaultlier", "vaultlier.ts"),
+      "utf8",
+    );
     expect(client).toContain("FEATURE_NEW_FLOW: boolean;");
   });
 
@@ -1379,6 +1625,7 @@ describe("run", () => {
           keys: {
             DATABASE_URL: { type: "string", scopes: ["all"] },
           },
+          client: "lib/vaultlier/vaultlier.ts",
         },
         null,
         2,
@@ -1392,7 +1639,10 @@ describe("run", () => {
     });
 
     expect(code).toBe(ExitCode.Success);
-    const client = await readFile(join(cwd, "lib", "vaultlier.ts"), "utf8");
+    const client = await readFile(
+      join(cwd, "lib", "vaultlier", "vaultlier.ts"),
+      "utf8",
+    );
     expect(client).toContain("DATABASE_URL: string;");
   });
 
@@ -1603,10 +1853,13 @@ describe("run", () => {
 
     // No API key: local-only drop, with a warning about the remote.
     const stdout = capture();
-    const code = await run(["update", "--env=prod", "--drop=SHARED_KEY", "--yes"], {
-      cwd,
-      stdout: stdout.stream,
-    });
+    const code = await run(
+      ["update", "--env=prod", "--drop=SHARED_KEY", "--yes"],
+      {
+        cwd,
+        stdout: stdout.stream,
+      },
+    );
 
     expect(code).toBe(ExitCode.Success);
     expect(stdout.read()).toContain("dropped locally only");

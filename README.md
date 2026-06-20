@@ -19,11 +19,16 @@ npx vaultlier pull --env=prod
 dependency if needed, offers a browser login when you have no account
 credentials yet, lets you pick an existing project with the arrow keys (or
 create a new one), and asks for an API key - **press Enter to skip** if you
-don't have one yet. It then writes two metadata-only artifacts -
-`vaultlier.json` (schema) and `lib/vaultlier.ts` (generated typed client).
-Existing projects may also use `vaultlier.config.json` for schema metadata.
-Fully non-interactive setup still works: `npx vaultlier init
---project-id=<id> --api-key=<key>`.
+don't have one yet. It always writes the metadata-only `vaultlier.json`
+(schema), and **optionally** generates a typed SDK client. When you accept the
+prompt, the client is generated at `lib/vaultlier/vaultlier.ts` by default
+(override with `--client=<path>`); decline (or pass `--no-client`) to wire the
+SDK by hand with `import { createClient } from 'vaultlier'`. The chosen path is
+recorded in `vaultlier.json` (`"client"`), so later commands only regenerate
+the client when you opted in. Existing projects may also use
+`vaultlier.config.json` for schema metadata. Fully non-interactive setup still
+works: `npx vaultlier init --project-id=<id> --api-key=<key>`
+(generates the client unless `--no-client` is passed).
 
 ## Login and account
 
@@ -49,7 +54,7 @@ npx vaultlier config verify   # re-validates the project id + key with the porta
 ```
 
 `config set project=...` updates `vaultlier.json` and regenerates the typed
-client; `config set apiKey=...` updates only the local credential cache and
+client when one was generated; `config set apiKey=...` updates only the local credential cache and
 never prints the key back. You can skip storing a key entirely and set
 `VAULTLIER_API_KEY` in the environment instead - the CLI and runtime resolve
 it automatically.
@@ -84,6 +89,22 @@ deleted), adopts the synced schema into `vaultlier.json`, then writes the
 values against the new environment. An environment that exists locally but not
 in the portal is synced the same way automatically.
 
+## Remove secret values
+
+```bash
+npx vaultlier unset DATABASE_URL --env=prod
+npx vaultlier unset STRIPE_SECRET FEATURE_NEW_FLOW --env=prod --yes
+```
+
+`unset` is the counterpart to `set`: it removes the stored **values** for one or
+more keys from a single environment. The schema metadata (key names, types,
+scopes) is left intact, so the keys can be re-set later. Because removal is
+unrecoverable, `unset` confirms before deleting unless you pass `--yes` (e.g. in
+CI). Values are never read, printed, or written to disk; a `KEY=VALUE` argument
+is accepted but the value is ignored, so a `set` line can be reused. The CLI
+reports which keys were removed (and which were not set). Requires an API key
+with the member role or higher.
+
 ## CLI output
 
 Commands print status-prefixed lines (check/warning/cross) and show a spinner
@@ -98,18 +119,20 @@ stderr, keeping stdout clean for scripting.
 Every value flag has a canonical `--kebab-case` long form; common ones also
 have a single-letter short form. Both `--flag=value` and `--flag value` work.
 
-| Short | Long           | Aliases                  | Used by                        |
-| ----- | -------------- | ------------------------ | ------------------------------ |
-| `-e`  | `--env`        | `--environment`          | `pull`, `push`, `diff`, `set`  |
-| `-k`  | `--api-key`    | `--apiKey`               | all portal commands            |
-|       | `--api-url`    | `--apiUrl`               | all portal commands            |
-|       | `--project-id` | `--projectId`            | `init`                         |
-| `-p`  | `--port`       |                          | `dev`                          |
-| `-o`  | `--output`     |                          | `--generate`, `--generate-env` |
-| `-g`  | `--generate`   |                          | standalone                     |
-| `-y`  | `--yes`        |                          | prompts                        |
-| `-f`  | `--force`      |                          | `init`, generated `.env`       |
-| `-h`  | `--help`       |                          | everywhere                     |
+| Short | Long           | Aliases         | Used by                                |
+| ----- | -------------- | --------------- | -------------------------------------- |
+| `-e`  | `--env`        | `--environment` | `pull`, `push`, `diff`, `set`, `unset` |
+| `-k`  | `--api-key`    | `--apiKey`      | all portal commands                    |
+|       | `--api-url`    | `--apiUrl`      | all portal commands                    |
+|       | `--project-id` | `--projectId`   | `init`                                 |
+| `-p`  | `--port`       |                 | `dev`                                  |
+| `-o`  | `--output`     |                 | `--generate`, `--generate-env`         |
+|       | `--client`     |                 | `init`                                 |
+|       | `--no-client`  |                 | `init`                                 |
+| `-g`  | `--generate`   |                 | standalone                             |
+| `-y`  | `--yes`        |                 | prompts                                |
+| `-f`  | `--force`      |                 | `init`, generated `.env`               |
+| `-h`  | `--help`       |                 | everywhere                             |
 
 ## Inspect your config locally
 
@@ -128,7 +151,7 @@ back to metadata only. Use `--port=<n>` to change the port.
 ## Runtime usage
 
 ```ts
-import { vault } from "./lib/vaultlier"; // generated client
+import { vault } from "./lib/vaultlier/vaultlier"; // generated client
 
 const config = await vault({ environment: "prod" });
 config.DATABASE_URL; // typed
@@ -162,7 +185,7 @@ The runtime entry uses only `fetch` and Web Crypto - no Node-only imports, no th
 ## Security
 
 - Secrets are resolved in memory and never written to disk.
-- `vaultlier.json` / `vaultlier.config.json` and `lib/vaultlier.ts` contain metadata only - never secret values or API keys.
+- `vaultlier.json` / `vaultlier.config.json` and the generated client (`lib/vaultlier/vaultlier.ts` by default, when enabled) contain metadata only - never secret values or API keys.
 - Never commit your `VAULTLIER_API_KEY`.
 
 ## License

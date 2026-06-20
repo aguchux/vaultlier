@@ -59,7 +59,7 @@ The workflow triggers when a GitHub Release is published. The tag should match
 the package version (`v0.1.0` -> `0.1.0`).
 
 ```powershell
-# 1. Bump packages/vaultlier/package.json and package-lock.json.
+# 1. Bump package.json and package-lock.json.
 npm run version:patch
 
 # For other bump types:
@@ -68,18 +68,19 @@ npm run version:patch
 # npm run version:vaultlier -- 0.2.3
 
 # 2. Commit the version bump.
-git add packages/vaultlier/package.json package-lock.json
-git commit -m "Release vaultlier 0.1.1"
+git add package.json package-lock.json
+git commit -m "Release vaultlier 0.1.21"
 git push
 
 # 3. Cut the release with a tag matching the new package version:
-gh release create v0.1.7 --title "v0.1.7" --notes "Release vaultlier 0.1.7"
+gh release create v0.1.22 --title "v0.1.22" --notes "Release vaultlier 0.1.22"
 
 # 4. Watch the workflow run:
 gh run watch
 
 # 5. Verify once it finishes:
 npm view vaultlier
+
 ```
 
 Trusted Publishing automatically generates npm provenance for public packages

@@ -40,6 +40,10 @@ than that without raising it deliberately.
   need tests in the matching `*.test.ts`. Coverage thresholds in
   `vitest.config.ts` are floors; raise them when coverage grows, never lower
   them to merge.
+- **User-facing changes update both docs surfaces.** Any CLI, runtime SDK,
+  config schema, generated-client, security, or release behavior change must be
+  reflected in this package's `README.md` (the npm README) and in the
+  documentation site under `../website/apps/docs`.
 - **CLI output conventions.** Write through the injected `ctx` streams (never
   `console.*`; lint blocks it), use `ctx.ui` for status lines and spinners,
   and keep stdout machine-readable (spinners render on stderr).

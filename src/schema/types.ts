@@ -38,6 +38,12 @@ export interface VaultlierConfig {
   version: number;
   environments: string[];
   keys: Record<string, VaultKeySchema>;
+  /**
+   * Where the typed SDK client is generated, relative to the config file.
+   * Set by `init` when the user opts into client generation. When omitted,
+   * the project manages the SDK by hand and no client file is (re)generated.
+   */
+  client?: string;
 }
 
 /** Canonical hosted JSON Schema for the config file. */
@@ -69,7 +75,12 @@ export const API_KEY_ENV = "VAULTLIER_API_KEY";
 /** Names of the generated artifacts written by the CLI. */
 export const GENERATED_FILES = {
   config: "vaultlier.json",
-  client: "lib/vaultlier.ts",
+  /**
+   * Default location for the optional typed SDK client. Client generation is
+   * opt-in (see `VaultlierConfig.client`); this is the path `init` proposes and
+   * the override default for `--output`.
+   */
+  client: "lib/vaultlier/vaultlier.ts",
 } as const;
 
 /** Config filenames accepted by the CLI. The first entry is the write target. */

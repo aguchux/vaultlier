@@ -153,6 +153,47 @@ export async function putEnvironmentSecrets(
   return { environment: result.environment, versions: result.versions };
 }
 
+/** Result of removing secret values: the keys the portal actually removed. */
+export interface SecretDeleteResult {
+  environment: string;
+  removed: string[];
+}
+
+/**
+ * DELETE secret values for one environment (`vaultlier unset`). Removes the
+ * named keys' values from the environment; the schema (key names, types) is
+ * untouched — only the stored values are dropped. The response lists the keys
+ * the portal removed and never echoes any value.
+ */
+export async function deleteEnvironmentSecrets(
+  options: PortalClientOptions,
+  projectId: string,
+  environment: string,
+  keys: string[],
+): Promise<SecretDeleteResult> {
+  const payload = await requestJson(options, {
+    method: "DELETE",
+    path: `/v1/projects/${encodeURIComponent(projectId)}/secrets`,
+    body: { environment, keys },
+  });
+  const result = payload as Partial<SecretDeleteResult> | null;
+  if (
+    result === null ||
+    typeof result !== "object" ||
+    typeof result.environment !== "string" ||
+    !Array.isArray(result.removed)
+  ) {
+    throw new PortalApiError(
+      "response/invalid",
+      "portal returned an unexpected secrets-delete payload",
+    );
+  }
+  return {
+    environment: result.environment,
+    removed: result.removed.filter((k): k is string => typeof k === "string"),
+  };
+}
+
 /** Current storage backend for a project (display metadata only, no creds). */
 export interface StorageConfigView {
   adapterType: "VAULTLIER" | "S3" | "POSTGRES";
@@ -171,7 +212,11 @@ export async function fetchStorageConfig(
     path: `/v1/projects/${encodeURIComponent(projectId)}/storage`,
   });
   const doc = payload as Partial<StorageConfigView> | null;
-  if (doc === null || typeof doc !== "object" || typeof doc.adapterType !== "string") {
+  if (
+    doc === null ||
+    typeof doc !== "object" ||
+    typeof doc.adapterType !== "string"
+  ) {
     throw new PortalApiError(
       "response/invalid",
       "portal returned an unexpected storage payload",
@@ -404,7 +449,11 @@ export async function listProjects(
     path: "/v1/projects",
   });
   const body = payload as { projects?: unknown } | null;
-  if (body === null || typeof body !== "object" || !Array.isArray(body.projects)) {
+  if (
+    body === null ||
+    typeof body !== "object" ||
+    !Array.isArray(body.projects)
+  ) {
     throw new PortalApiError(
       "response/invalid",
       "portal returned an unexpected project list payload",
@@ -503,7 +552,10 @@ async function requestJson(
   // and fail with a clear, actionable message rather than letting fetch follow
   // it and silently drop the Authorization header.
   const location = res.headers.get("location");
-  if ((res.status >= 300 && res.status < 400) || (res.status === 0 && location)) {
+  if (
+    (res.status >= 300 && res.status < 400) ||
+    (res.status === 0 && location)
+  ) {
     throw new PortalApiError(
       "config/redirect",
       `The portal URL ${options.apiUrl} redirects${location ? ` to ${new URL(location, options.apiUrl).origin}` : ""}. ` +
@@ -516,9 +568,7 @@ async function requestJson(
   const payload = await res.json().catch(() => undefined);
 
   if (!res.ok) {
-    const body = payload as
-      | { code?: string; message?: string }
-      | undefined;
+    const body = payload as { code?: string; message?: string } | undefined;
     throw new PortalApiError(
       body?.code ?? `http/${res.status}`,
       body?.message ?? `portal request failed with status ${res.status}`,

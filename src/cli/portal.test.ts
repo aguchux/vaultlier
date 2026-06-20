@@ -3,6 +3,7 @@ import {
   DEFAULT_API_URL,
   PortalApiError,
   createProject,
+  deleteEnvironmentSecrets,
   listProjects,
   resolveApiUrl,
 } from "./portal.js";
@@ -45,7 +46,9 @@ describe("redirect handling", () => {
     }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(PortalApiError);
     expect((err as PortalApiError).code).toBe("config/redirect");
-    expect((err as PortalApiError).message).toContain("https://www.vaultlier.com");
+    expect((err as PortalApiError).message).toContain(
+      "https://www.vaultlier.com",
+    );
   });
 });
 
@@ -124,6 +127,49 @@ describe("createProject", () => {
       createProject(
         { ...OPTIONS, fetchImpl: jsonFetch(201, { name: "checkout" }) },
         "checkout",
+      ),
+    ).rejects.toMatchObject({ code: "response/invalid" });
+  });
+});
+
+describe("deleteEnvironmentSecrets", () => {
+  it("issues a DELETE with the key list and returns removed keys", async () => {
+    let method: string | undefined;
+    let url: string | undefined;
+    let body: string | undefined;
+    const fetchImpl: FetchLike = async (reqUrl, init) => {
+      method = init?.method;
+      url = reqUrl;
+      body = init?.body;
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => ({ environment: "prod", removed: ["DATABASE_URL"] }),
+      };
+    };
+    const result = await deleteEnvironmentSecrets(
+      { ...OPTIONS, fetchImpl },
+      "prj_1",
+      "prod",
+      ["DATABASE_URL"],
+    );
+    expect(method).toBe("DELETE");
+    expect(url).toBe("https://portal.test/v1/projects/prj_1/secrets");
+    expect(JSON.parse(body!)).toEqual({
+      environment: "prod",
+      keys: ["DATABASE_URL"],
+    });
+    expect(result).toEqual({ environment: "prod", removed: ["DATABASE_URL"] });
+  });
+
+  it("rejects an unexpected payload shape", async () => {
+    await expect(
+      deleteEnvironmentSecrets(
+        { ...OPTIONS, fetchImpl: jsonFetch(200, { nope: true }) },
+        "prj_1",
+        "prod",
+        ["DATABASE_URL"],
       ),
     ).rejects.toMatchObject({ code: "response/invalid" });
   });
