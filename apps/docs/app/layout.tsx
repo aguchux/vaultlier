@@ -24,7 +24,7 @@ const jsonLd = {
     "@type": "Organization",
     name: "Vaultlier",
     url: "https://vaultlier.com",
-    logo: "https://vaultlier.com/icons/icon-512.png",
+    logo: "https://vaultlier.com/brand/logo.png",
   },
 };
 
@@ -88,6 +88,14 @@ export const metadata: Metadata = {
     address: false,
     email: false,
     telephone: false,
+  },
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/icon.png", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-icon.png", type: "image/png" }],
+    shortcut: ["/favicon.ico"],
   },
   manifest: "/manifest.webmanifest",
   appleWebApp: {

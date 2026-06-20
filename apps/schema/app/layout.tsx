@@ -7,6 +7,38 @@ export const metadata: Metadata = {
   title: "Vaultlier Schema",
   description:
     "JSON Schema for the Vaultlier config file (vaultlier.json / vaultlier.config.json).",
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/icon.png", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-icon.png", type: "image/png" }],
+    shortcut: ["/favicon.ico"],
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: "/",
+    siteName: "Vaultlier Schema",
+    title: "Vaultlier Schema",
+    description:
+      "JSON Schema for the Vaultlier config file (vaultlier.json / vaultlier.config.json).",
+    images: [
+      {
+        url: "/opengraph-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Vaultlier Schema",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Vaultlier Schema",
+    description:
+      "JSON Schema for the Vaultlier config file (vaultlier.json / vaultlier.config.json).",
+    images: ["/opengraph-image.png"],
+  },
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
