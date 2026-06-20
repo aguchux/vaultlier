@@ -1,37 +1,86 @@
 {
-  "name": "vaultlier-cloud",
-  "private": true,
-  "scripts": {
-    "build": "turbo run build",
-    "dev": "turbo run dev",
-    "lint": "turbo run lint && npm run lint:root",
-    "lint:global": "eslint . --max-warnings 0",
-    "lint:root": "eslint eslint.config.mjs --max-warnings 0",
-    "format": "prettier --write \"**/*.{js,cjs,mjs,ts,tsx,json,jsonc,css,md,mdx,yml,yaml}\"",
-    "format:check": "prettier --check \"**/*.{js,cjs,mjs,ts,tsx,json,jsonc,css,md,mdx,yml,yaml}\"",
-    "version:vaultlier": "npm version --workspace=vaultlier --no-git-tag-version",
-    "version:patch": "npm version patch --workspace=vaultlier --no-git-tag-version",
-    "version:minor": "npm version minor --workspace=vaultlier --no-git-tag-version",
-    "version:major": "npm version major --workspace=vaultlier --no-git-tag-version",
-    "check-types": "turbo run check-types",
-    "test": "turbo run test"
+  "name": "vaultlier",
+  "version": "0.1.20",
+  "description": "Typed runtime client, CLI, and type generation for the Vaultlier sealed configuration vault. Replaces the .env workflow without writing secret values to disk.",
+  "license": "MIT",
+  "type": "module",
+  "keywords": [
+    "vaultlier",
+    "secrets",
+    "env",
+    "configuration",
+    "vault",
+    "dotenv",
+    "cli",
+    "runtime"
+  ],
+  "homepage": "https://vaultlier.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aguchux/vaultlier.git"
   },
-  "devDependencies": {
-    "@vaultlier/eslint-config": "*",
-    "eslint": "^9.39.1",
-    "prettier": "^3.7.4",
-    "turbo": "^2.9.17",
-    "typescript": "5.9.2"
+  "bugs": {
+    "url": "https://github.com/aguchux/vaultlier/issues"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime/index.d.ts",
+      "default": "./dist/runtime/index.js"
+    },
+    "./cli": {
+      "types": "./dist/cli/index.d.ts",
+      "default": "./dist/cli/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "vaultlier": "./dist/cli/bin.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "SECURITY.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "npm run build:js && npm run build:types",
+    "build:js": "tsup",
+    "build:types": "tsc -p tsconfig.build.json",
+    "dev": "tsup --watch",
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "clean": "node -e \"for (const p of ['dist', '.turbo', 'coverage']) require('node:fs').rmSync(p, { recursive: true, force: true })\"",
+    "prepublishOnly": "npm run build"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=18"
   },
-  "packageManager": "npm@11.12.0",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
-  "dependencies": {
-    "vaultlier": "^0.1.12"
+  "publishConfig": {
+    "access": "public"
+  },
+  "overrides": {
+    "esbuild": "^0.28.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/node": "^22.15.3",
+    "@vitest/coverage-v8": "^3.2.6",
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
+    "tsup": "^8.5.0",
+    "typescript": "5.9.2",
+    "typescript-eslint": "^8.49.0",
+    "vitest": "^3.2.6"
   }
 }

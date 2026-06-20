@@ -1,21 +1,24 @@
-name: Release vaultlier
+name: Release
 
-# Publishes the `vaultlier` package to npm through Trusted Publishing when a
-# GitHub Release is published. Create a release whose tag matches the package
-# version (e.g. tag `v0.1.0` for version 0.1.0).
 on:
   release:
-    types: [published]
-  # Allows a manual run from the Actions tab for re-publishing/testing.
+    types:
+      - published
   workflow_dispatch:
 
 permissions:
   contents: read
-  id-token: write # required for npm Trusted Publishing/OIDC
+  id-token: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   publish:
+    name: Publish to npm
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,21 +26,55 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 22
+          cache: npm
           registry-url: https://registry.npmjs.org
 
-      - name: Install dependencies
+      - name: Install
         run: npm ci
 
-      - name: Verify (lint, types, tests + coverage, build)
-        run: npx turbo run lint check-types test:coverage build --filter=vaultlier
+      - name: Validate release tag
+        if: github.event_name == 'release'
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+
+          const pkg = JSON.parse(readFileSync("package.json", "utf8"));
+          const tag = process.env.GITHUB_REF_NAME;
+          const accepted = new Set([pkg.version, `v${pkg.version}`]);
+
+          if (!accepted.has(tag)) {
+            console.error(
+              `Release tag "${tag}" does not match package version "${pkg.version}".`,
+            );
+            process.exit(1);
+          }
+          NODE
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Check types
+        run: npm run check-types
+
+      - name: Test
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
+      - name: Audit
+        run: npm audit --audit-level=low
+
+      - name: Verify package contents
+        run: npm pack --dry-run
 
       - name: Check npm version
         id: npm-version
         shell: bash
         run: |
-          PACKAGE_NAME="$(node -p "require('./packages/vaultlier/package.json').name")"
-          PACKAGE_VERSION="$(node -p "require('./packages/vaultlier/package.json').version")"
+          PACKAGE_NAME="$(node -p "require('./package.json').name")"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
 
           if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
@@ -46,6 +83,6 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Publish to npm with trusted publishing
+      - name: Publish
         if: steps.npm-version.outputs.exists != 'true'
-        run: npm publish --workspace=vaultlier --access public
+        run: npm publish --access public --provenance

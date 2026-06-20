@@ -1,8 +1,0 @@
-{
-  "extends": "@vaultlier/typescript-config/library.json",
-  "compilerOptions": {
-    "outDir": "dist"
-  },
-  "include": ["src", "tsup.config.ts", "vitest.config.ts"],
-  "exclude": ["node_modules", "dist"]
-}
