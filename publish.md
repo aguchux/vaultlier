@@ -75,11 +75,11 @@ npm run version:patch
 
 # 2. Commit the version bump.
 git add package.json package-lock.json
-git commit -m "Release vaultlier 0.1.23"
+git commit -m "Release vaultlier 0.1.24"
 git push
 
 # 3. Cut the release with a tag matching the new package version:
-gh release create v0.1.23 --title "v0.1.23" --notes "Release vaultlier 0.1.23"
+gh release create v0.1.24 --title "v0.1.24" --notes "Release vaultlier 0.1.24"
 
 # 4. Watch the workflow run:
 gh run watch
